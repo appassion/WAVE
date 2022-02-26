@@ -53,6 +53,13 @@ main {
 	border:dashed 1px #333;
 }
 
+#out_log1 {
+	height:4em;
+	overflow-y:scroll;
+	resize:vertical;
+	border-style:inset;
+}
+
 </style>
 <script type="text/javascript">//<!-- type="application/javascript;version=1.7"-->
 // <![CDATA[
@@ -113,7 +120,9 @@ function decodeHamming(input){
 		
 		if(check[0]+check[1]+check[2] >= 1 && check[3] == 0){
 			// エラー
-			output = output.concat(["[error]","","",""]);
+			//output = output.concat(["[error]","","",""]);
+			output = [];	//["error"];
+			break;
 		}
 		else{
 			if(check[0]+check[1]+check[2] <= 1){
@@ -450,7 +459,8 @@ function receive(){
 			var fields = {};
 			var binId = "";
 			var binSize = 0;
-			var binData = [];
+			var binRowData = "";
+			var binDecodeData = "";
 			
 			scriptProcessor.onaudioprocess = function(e){
 				// 時間を計測
@@ -535,7 +545,7 @@ function receive(){
 				document.querySelector("#data_median").innerText = num.data.ave.median;
 				document.querySelector("#data_stdev").innerText = num.data.ave.stdev;
 				
-				if(Math.sign(syncSign) == Math.sign(num.sync.ave.mean)){
+				if(Math.sign(syncSign) === Math.sign(num.sync.ave.mean)){
 					
 					syncSign += Math.sign(syncSign);
 					if(Math.abs(syncSign) >= 3){			// 同じ符号が連続で続いた場合
@@ -550,83 +560,96 @@ function receive(){
 						document.querySelector("#time_sync_median").innerText = time.sync.delta.ave.median;
 						document.querySelector("#time_sync_stdev").innerText = time.sync.delta.ave.stdev;
 						
-						if(state == 0 && time.sync.delta.ave.stdev < 100){
+						if(state === 0 && time.sync.delta.ave.stdev < 100){
 							state++;
 						}
 						
 						if(time.sync.delta.ave.stdev < 0.1){	// 同期信号の切り替え間隔の標準偏差が0.1未満の場合、同期信号取得成功
-							binData.push(num.data.result);
+							binRowData += num.data.result;
 							document.querySelector("#dataResult").innerText = num.data.result;
 							
-							if(state >= 6){
+							if(state === 6){
 								document.querySelector("#out_binary").innerText += num.data.result;
 							}
 							
-							if(state == 1){
+							if(state === 1){
 								// ビットレベル同期完了
 								state++;
 							}
-							else if(state == 2){
-								if(decodeHamming(binData.slice(-8)) == "0110"){	// 0110 decode> 01101100:'l'
+							else if(state === 2){
+								if(decodeHamming(binRowData.slice(-8)) == "0110"){	// 0110 decode> 01101100:'l'
 									// バイトレベル同期完了(開始フレーム識別子(SFD)受信)
 									state = 3;
-									binData = [];
+									binRowData = "";
 								}
 							}
-							else if(state >= 3){
-								if(binData.length % 8 == 0){	// 8ビット単位で処理
+							else if(state >= 3 && state <= 6){
+								document.querySelector("#out_log0").textContent += num.data.result + (binRowData.length%4 ? "":" ");
+
+								if(binRowData.length % 8 === 0){	// 8ビット単位で処理
 									
-									if(state == 2 || state == 3 || state == 5){
-										binId = decodeHamming(binData.slice(-8));
+									if(state === 3 || state === 5){
+										binId = decodeHamming(binRowData.slice(-8));
 										binSize = parseInt(encodeHamming(binId).slice(-4), 2) - 1;
 										switch(binId){
 											case "0110":	// 0110 decode> 01101100:'l'
 												state = 3;
-												binData = [];
+												binRowData = "";
+												binDecodeData = "";
 												binSize = 0;
 												break;
 											case "0111":	// 0111 decode> 01110010:'r'
 												state = 4;
-												binData = [];
+												binRowData = "";
+												binDecodeData = "";
 												break;
 											case "0011":	// 0011 decode> 00110101:'5'
 												state = 4;
-												binData = [];
+												binRowData = "";
+												binDecodeData = "";
 												break;
 											case "0101":	// 0101 decode> 01011001:'Y'
 												state = 6;
 												binSize = parseInt(fields["0011"], 2) - 1;
-												binData = [];
+												binRowData = "";
+												binDecodeData = "";
 												break;
 											//case "0010":	// 0010 decode> 00101011:'+'
 												//state = 8;
-												//binData = [];
+												//binRowData = "";
+												//binDecodeData = "";
 												//break;
 											default:
-												document.querySelector("#out_log1").innerHTML += "error! : " + binData.slice(-8).join("") + "<br />";
+												document.querySelector("#out_log1").innerHTML += "error! : " + binRowData.slice(-8) + "<br />";
 												break;
 										}
-										document.querySelector("#field_name").innerText = encodeHamming(binId);	//binData.slice(-8).join("")
+										document.querySelector("#field_name").innerText = encodeHamming(binId);	//binData.slice(-8)
 										document.querySelector("#field_size").innerText = binSize;
 										document.querySelector("#out_log1").innerHTML += encodeHamming(binId) + "<br />";
+										document.querySelector("#out_log1").scrollIntoView(false);
+										document.querySelector("#out_log1").scrollTo(0, document.querySelector("#out_log1").scrollHeight);
 									}
-									else if(state == 4 || state == 6){
-										if(state == 6){		// ペイロード受信中
-											document.querySelector("#out_hex").innerText += parseInt(binData.slice(-8).join(""), 2).toString(16);
+									else if(state === 4 || state === 6){
+										binDecodeData += decodeHamming(binRowData.slice(-8));
+
+										if(state === 6){		// ペイロード受信中
+											document.querySelector("#out_hex").innerText += parseInt(binRowData.slice(-8), 2).toString(16);
 											
-											if(decode(binData.join(""), 2) != ""){
-												document.querySelector("#out_text").value = decode(binData.join(""), 2);
+											if(decode(binRowData, 2) != ""){
+												document.querySelector("#out_text").value = decode(binRowData, 2);
 											}
 											else{
-												document.querySelector("#out_text").value += decode(binData.slice(-8).join(""), 2);
+												document.querySelector("#out_text").value += decode(binRowData.slice(-8), 2);
 											}
 										}
 										
 										binSize--;
 										document.querySelector("#field_size").innerText = binSize;
-										if(binSize == 0){	// フィールド受信終了
-											fields[binId] = binData.join("");
-											document.querySelector("#out_log1").innerHTML += " ┗ " + binData.join("") + "<br />";
+										if(binSize === 0){	// フィールド受信終了
+											fields[binId] = binRowData;
+											document.querySelector("#out_log1").innerHTML += " ┗ " + binRowData + "<br />";
+											document.querySelector("#out_log1").scrollIntoView(false);
+											document.querySelector("#out_log1").scrollTo(0, document.querySelector("#out_log1").scrollHeight);
 											state++;
 										}
 									}
@@ -739,12 +762,13 @@ window.addEventListener("unload", function(){
 	<div>
 		<input type="button" value="receive" onclick="receive();" />
 		<br />
+		<div id="out_log0" class="dashed"></div>
+		<div id="out_log1"></div>
 		<div class="dashed">
 			<div id="out_binary"></div>
 			<div id="out_hex"></div>
 			<textarea id="out_text"></textarea>
 		</div>
-		<div id="out_log1" class="dashed"></div>
 		<div>
 			<span title="1:「+」, -1:「-」">
 				sync-sign : <span id="syncSign">0</span>
