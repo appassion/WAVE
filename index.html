@@ -38,6 +38,8 @@ body {
 	background: #f0f0e0;
 	color: #0f0f1f;
 	font-family:"Helvetica Neue", Helvetica, "Arial Unicode MS", Arial, sans-serif;
+	/*/
+	font-family:monospace;/**/
 }
 
 main {
@@ -76,9 +78,13 @@ function logN(x, base){	// JavaScriptでは底を指定した対数が使えな�
 
 
 function encodeHamming(input){
+	// 引数:文字列or配列(複数対応), 戻り値:文字列
 	var output = [];
+	if(!Array.isArray(input)){
+		input = input.split("");
+	}
 	for(var i=0,len=input.length; i<len; i+=4){
-		var buffer = input.splice(0, 4);
+		var buffer = input.slice(i, i+4);	//input.splice(0, 4);
 		buffer.push(String(+buffer[0] ^ +buffer[2] ^ +buffer[3]));
 		buffer.push(String(+buffer[0] ^ +buffer[1] ^ +buffer[3]));
 		buffer.push(String(+buffer[1] ^ +buffer[2] ^ +buffer[3]));
@@ -89,12 +95,16 @@ function encodeHamming(input){
 }
 
 function decodeHamming(input){
+	// 引数:文字列or配列(複数対応), 戻り値:文字列
 	var output = [];
-	if(input.length != 8){
-		return output;
+	if(!Array.isArray(input)){
+		input = input.split("");
+	}
+	if(input.length%8 != 0){
+		return output.join("");
 	}
 	for(var i=0,len=input.length; i<len; i+=8){
-		var buffer = input.splice(0, 8);
+		var buffer = input.slice(i, i+8);	//input.splice(0, 8);
 		var check = [];
 		check.push(+buffer[0] ^ +buffer[2] ^ +buffer[3] ^ +buffer[4]);
 		check.push(+buffer[0] ^ +buffer[1] ^ +buffer[3] ^ +buffer[5]);
@@ -120,6 +130,7 @@ function decodeHamming(input){
 	}
 	return output.join("");
 }
+
 
 function encode(text, base=10){
 	var result = encodeURIComponent(text)
@@ -435,7 +446,7 @@ function receive(){
 				},
 			};
 			var state = 0;	// 0:未受信, 1:同期信号受信開始, 2:同期信号受信完了(ビットレベルの同期), 3:同期ワード受信完了(バイトレベルの同期), 4:ヘッダ受信開始, 5:ヘッダ受信完了, 6:データ受信開始, 7:データ受信終了
-			var syncState = -1;	// 上昇or下降
+			var syncSign = -1;	// 上昇or下降
 			var fields = {};
 			var binId = "";
 			var binSize = 0;
@@ -524,11 +535,11 @@ function receive(){
 				document.querySelector("#data_median").innerText = num.data.ave.median;
 				document.querySelector("#data_stdev").innerText = num.data.ave.stdev;
 				
-				if(Math.sign(syncState) == Math.sign(num.sync.ave.mean)){
+				if(Math.sign(syncSign) == Math.sign(num.sync.ave.mean)){
 					
-					syncState += Math.sign(syncState);
-					if(Math.abs(syncState) >= 3){			// 同じ符号が連続で続いた場合
-						syncState = -Math.sign(syncState);	// 符号を反転させる
+					syncSign += Math.sign(syncSign);
+					if(Math.abs(syncSign) >= 3){			// 同じ符号が連続で続いた場合
+						syncSign = -Math.sign(syncSign);	// 符号を反転させる
 						
 						// 時間を計測	同期信号取得中
 						time.sync.delta.value = audioContext.currentTime - time.sync.pre;
@@ -552,20 +563,22 @@ function receive(){
 							}
 							
 							if(state == 1){
+								// ビットレベル同期完了
 								state++;
 							}
 							else if(state == 2){
 								if(decodeHamming(binData.slice(-8)) == "0110"){	// 0110 decode> 01101100:'l'
+									// バイトレベル同期完了(開始フレーム識別子(SFD)受信)
 									state = 3;
 									binData = [];
 								}
 							}
 							else if(state >= 3){
-								
-								if(binData.length % 8 == 0){
+								if(binData.length % 8 == 0){	// 8ビット単位で処理
+									
 									if(state == 2 || state == 3 || state == 5){
 										binId = decodeHamming(binData.slice(-8));
-										binSize = (parseInt(encodeHamming(binId.split("")).slice(-4), 2) - 1);
+										binSize = parseInt(encodeHamming(binId).slice(-4), 2) - 1;
 										switch(binId){
 											case "0110":	// 0110 decode> 01101100:'l'
 												state = 3;
@@ -593,12 +606,12 @@ function receive(){
 												document.querySelector("#out_log1").innerHTML += "error! : " + binData.slice(-8).join("") + "<br />";
 												break;
 										}
-										document.querySelector("#field_name").innerText = encodeHamming(binId.split(""));	//binData.slice(-8).join("")
+										document.querySelector("#field_name").innerText = encodeHamming(binId);	//binData.slice(-8).join("")
 										document.querySelector("#field_size").innerText = binSize;
-										document.querySelector("#out_log1").innerHTML += encodeHamming(binId.split("")) + "<br />";
+										document.querySelector("#out_log1").innerHTML += encodeHamming(binId) + "<br />";
 									}
 									else if(state == 4 || state == 6){
-										if(state == 6){
+										if(state == 6){		// ペイロード受信中
 											document.querySelector("#out_hex").innerText += parseInt(binData.slice(-8).join(""), 2).toString(16);
 											
 											if(decode(binData.join(""), 2) != ""){
@@ -611,21 +624,21 @@ function receive(){
 										
 										binSize--;
 										document.querySelector("#field_size").innerText = binSize;
-										if(binSize == 0){
+										if(binSize == 0){	// フィールド受信終了
 											fields[binId] = binData.join("");
 											document.querySelector("#out_log1").innerHTML += " ┗ " + binData.join("") + "<br />";
 											state++;
 										}
 									}
+
 								}
-								
 							}
 							
 							
 						}
 						document.querySelector("#status").innerText = state;
 					}
-					document.querySelector("#syncStatus").innerText = syncState;
+					document.querySelector("#syncSign").innerText = syncSign;
 				}
 				
 				
@@ -726,18 +739,34 @@ window.addEventListener("unload", function(){
 	<div>
 		<input type="button" value="receive" onclick="receive();" />
 		<br />
-		<div id="out_binary"></div>
-		<div id="out_hex"></div>
-		<textarea id="out_text"></textarea>
-		<div id="out_log1"></div>
+		<div class="dashed">
+			<div id="out_binary"></div>
+			<div id="out_hex"></div>
+			<textarea id="out_text"></textarea>
+		</div>
+		<div id="out_log1" class="dashed"></div>
 		<div>
-			<span>sync-status : <span id="syncStatus">0</span>, </span>
-			<span>data : <span id="dataResult">0</span>, </span>
-			<span>status : <span id="status">0</span>, </span>
+			<span title="1:「+」, -1:「-」">
+				sync-sign : <span id="syncSign">0</span>
+			</span>
 			<br />
-			<span>field-name : <span id="field_name">0</span>, </span>
-			<span>field-size : <span id="field_size">0</span>, </span>
+			<span>
+				data : <span id="dataResult">0</span>
+			</span>
 			<br />
+			<span title="0:未受信, 1:同期信号受信開始, 2:同期信号受信完了(ビットレベルの同期), 3:同期ワード受信完了(バイトレベルの同期), 4:ヘッダ受信開始, 5:ヘッダ受信完了, 6:データ受信開始, 7:データ受信終了">
+				status : <span id="status">0</span>
+			</span>
+			<br />
+			<span>
+				field-name : <span id="field_name">0</span>
+			</span>
+			<br />
+			<span>
+				field-size : <span id="field_size">0</span>
+			</span>
+			<br />
+
 			<table class="statistics">
 				<tr>
 					<td></td>
