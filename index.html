@@ -317,10 +317,10 @@ function send(source){
 		],
 	};
 	
-	var payload = [0,1,0,1,1,0,0,1].concat(encode(source, 2).split(""));
+	var payload = [0,1,0,1,1,0,0,1].concat(encodeExHamming(encode(source, 2)).split(""));
 	var preamble = [0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,1,1,0,1,1,0,0, 0,1,1,0,1,1,0,0];	// プリアンブル + 同期ワード(Start of Frame Delimiter(SFD):開始フレーム識別子,フレーム開始デリミタ)
 	var type = [0,1,1,1,0,0,1,0, 0,0,0,0,0,0,0,0];
-	var size = [0,0,1,1,0,1,0,1].concat((payload.length/8).toString(2).padStart(8*4, 0).split(""));
+	var size = [0,0,1,1,0,1,0,1].concat(encodeExHamming((payload.length/8).toString(2).padStart(8*4/2, 0)).split(""));
 	//var fcs = [0,0,1,0,1,0,1,1];
 	var frame = preamble.concat(type).concat(size).concat(payload);
 	
@@ -460,6 +460,8 @@ function receive(){
 			var fields = {};
 			var binId = "";
 			var binSize = 0;
+			//var binRawByte = "";
+			var binDecodeByte = "";
 			var binRawData = "";
 			var binDecodeData = "";
 			
@@ -588,68 +590,64 @@ function receive(){
 								document.querySelector("#out_log0").textContent += num.data.result + (binRawData.length%4 ? "":" ");
 
 								if(binRawData.length % 8 === 0){	// 8ビット単位で処理
+									binDecodeByte = decodeExHamming(binRawData.slice(-8));
+									binDecodeData += binDecodeByte;
+
 									document.querySelector("#out_log1").innerHTML += (state%2 ? "head":"body");
 									document.querySelector("#out_log1").innerHTML += "&nbsp;-&nbsp;raw:" + binRawData.slice(-8);
-									//document.querySelector("#out_log1").innerHTML += ",&nbsp;decode:" + encodeHamming(decodeHamming(binRawData.slice(-8)));
+									document.querySelector("#out_log1").innerHTML += ",&nbsp;decode:" + encodeExHamming(binDecodeByte);
 									
 									if(state === 3 || state === 5){
-										binId = decodeExHamming(binRawData.slice(-8));
-										binSize = parseInt(encodeExHamming(binId).slice(-4), 2) - 1;
-										document.querySelector("#out_log1").innerHTML += ",&nbsp;decode:" + encodeExHamming(binId);
+										binId = binDecodeByte;
+										binSize = parseInt(encodeExHamming(binDecodeByte).slice(-4), 2) - 1;
+										//document.querySelector("#out_log1").innerHTML += ",&nbsp;decode:" + encodeExHamming(binDecodeByte);
 										switch(binId){
 											case "0110":	// 0110 decode> 01101100:'l'
 												state = 3;
-												binRawData = "";
-												binDecodeData = "";
 												binSize = 0;
 												break;
 											case "0111":	// 0111 decode> 01110010:'r'
 												state = 4;
-												binRawData = "";
-												binDecodeData = "";
 												break;
 											case "0011":	// 0011 decode> 00110101:'5'
 												state = 4;
-												binRawData = "";
-												binDecodeData = "";
 												break;
 											case "0101":	// 0101 decode> 01011001:'Y'
 												state = 6;
 												binSize = parseInt(fields["0011"], 2) - 1;
-												binRawData = "";
-												binDecodeData = "";
 												break;
 											//case "0010":	// 0010 decode> 00101011:'+'
 												//state = 8;
-												//binRowData = "";
-												//binDecodeData = "";
 												//break;
 											default:
 												document.querySelector("#out_log1").innerHTML += "&nbsp;error!";
 												break;
 										}
-										document.querySelector("#field_name").innerText = encodeExHamming(binId);	//binData.slice(-8)
+										document.querySelector("#field_name").innerText = encodeExHamming(binDecodeByte);	//binRawData.slice(-8)
 										document.querySelector("#field_size").innerText = binSize;
+										binRawData = "";
+										binDecodeData = "";
 									}
 									else if(state === 4 || state === 6){
-										binDecodeData += decodeExHamming(binRawData.slice(-8));
-
+										
 										if(state === 6){		// ペイロード受信中
-											document.querySelector("#out_hex").innerText += parseInt(binRawData.slice(-8), 2).toString(16);
+											document.querySelector("#out_hex").innerText += parseInt(binDecodeByte, 2).toString(16);
 											
-											if(decode(binRawData, 2) != ""){
-												document.querySelector("#out_text").value = decode(binRawData, 2);
+											if(decode(binDecodeData, 2) != ""){
+												document.querySelector("#out_text").value = decode(binDecodeData, 2);
 											}
 											else{
-												document.querySelector("#out_text").value += decode(binRawData.slice(-8), 2);
+												document.querySelector("#out_text").value += decode(binDecodeByte, 2);
 											}
 										}
 										
 										binSize--;
 										document.querySelector("#field_size").innerText = binSize;
 										if(binSize === 0){	// フィールド受信終了
-											fields[binId] = binRawData;
+											fields[binId] = binDecodeData;
 											//document.querySelector("#out_log1").innerHTML += " ┗ " + binRawData + "<br />";
+											binRawData = "";
+											binDecodeData = "";
 											state++;
 										}
 									}
