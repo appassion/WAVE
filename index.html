@@ -58,6 +58,7 @@ main {
 	overflow-y:scroll;
 	resize:vertical;
 	border-style:inset;
+	font-family:monospace;
 }
 
 </style>
@@ -84,7 +85,7 @@ function logN(x, base){	// JavaScriptでは底を指定した対数が使えな�
 }
 
 
-function encodeHamming(input){
+function encodeExHamming(input){
 	// 引数:文字列or配列(複数対応), 戻り値:文字列
 	var output = [];
 	if(!Array.isArray(input)){
@@ -101,7 +102,7 @@ function encodeHamming(input){
 	return output.join("");
 }
 
-function decodeHamming(input){
+function decodeExHamming(input){
 	// 引数:文字列or配列(複数対応), 戻り値:文字列
 	var output = [];
 	if(!Array.isArray(input)){
@@ -459,7 +460,7 @@ function receive(){
 			var fields = {};
 			var binId = "";
 			var binSize = 0;
-			var binRowData = "";
+			var binRawData = "";
 			var binDecodeData = "";
 			
 			scriptProcessor.onaudioprocess = function(e){
@@ -565,7 +566,7 @@ function receive(){
 						}
 						
 						if(time.sync.delta.ave.stdev < 0.1){	// 同期信号の切り替え間隔の標準偏差が0.1未満の場合、同期信号取得成功
-							binRowData += num.data.result;
+							binRawData += num.data.result;
 							document.querySelector("#dataResult").innerText = num.data.result;
 							
 							if(state === 6){
@@ -577,41 +578,45 @@ function receive(){
 								state++;
 							}
 							else if(state === 2){
-								if(decodeHamming(binRowData.slice(-8)) == "0110"){	// 0110 decode> 01101100:'l'
+								if(decodeExHamming(binRawData.slice(-8)) == "0110"){	// 0110 decode> 01101100:'l'
 									// バイトレベル同期完了(開始フレーム識別子(SFD)受信)
 									state = 3;
-									binRowData = "";
+									binRawData = "";
 								}
 							}
 							else if(state >= 3 && state <= 6){
-								document.querySelector("#out_log0").textContent += num.data.result + (binRowData.length%4 ? "":" ");
+								document.querySelector("#out_log0").textContent += num.data.result + (binRawData.length%4 ? "":" ");
 
-								if(binRowData.length % 8 === 0){	// 8ビット単位で処理
+								if(binRawData.length % 8 === 0){	// 8ビット単位で処理
+									document.querySelector("#out_log1").innerHTML += (state%2 ? "head":"body");
+									document.querySelector("#out_log1").innerHTML += "&nbsp;-&nbsp;raw:" + binRawData.slice(-8);
+									//document.querySelector("#out_log1").innerHTML += ",&nbsp;decode:" + encodeHamming(decodeHamming(binRawData.slice(-8)));
 									
 									if(state === 3 || state === 5){
-										binId = decodeHamming(binRowData.slice(-8));
-										binSize = parseInt(encodeHamming(binId).slice(-4), 2) - 1;
+										binId = decodeExHamming(binRawData.slice(-8));
+										binSize = parseInt(encodeExHamming(binId).slice(-4), 2) - 1;
+										document.querySelector("#out_log1").innerHTML += ",&nbsp;decode:" + encodeExHamming(binId);
 										switch(binId){
 											case "0110":	// 0110 decode> 01101100:'l'
 												state = 3;
-												binRowData = "";
+												binRawData = "";
 												binDecodeData = "";
 												binSize = 0;
 												break;
 											case "0111":	// 0111 decode> 01110010:'r'
 												state = 4;
-												binRowData = "";
+												binRawData = "";
 												binDecodeData = "";
 												break;
 											case "0011":	// 0011 decode> 00110101:'5'
 												state = 4;
-												binRowData = "";
+												binRawData = "";
 												binDecodeData = "";
 												break;
 											case "0101":	// 0101 decode> 01011001:'Y'
 												state = 6;
 												binSize = parseInt(fields["0011"], 2) - 1;
-												binRowData = "";
+												binRawData = "";
 												binDecodeData = "";
 												break;
 											//case "0010":	// 0010 decode> 00101011:'+'
@@ -620,40 +625,38 @@ function receive(){
 												//binDecodeData = "";
 												//break;
 											default:
-												document.querySelector("#out_log1").innerHTML += "error! : " + binRowData.slice(-8) + "<br />";
+												document.querySelector("#out_log1").innerHTML += "&nbsp;error!";
 												break;
 										}
-										document.querySelector("#field_name").innerText = encodeHamming(binId);	//binData.slice(-8)
+										document.querySelector("#field_name").innerText = encodeExHamming(binId);	//binData.slice(-8)
 										document.querySelector("#field_size").innerText = binSize;
-										document.querySelector("#out_log1").innerHTML += encodeHamming(binId) + "<br />";
-										document.querySelector("#out_log1").scrollIntoView(false);
-										document.querySelector("#out_log1").scrollTo(0, document.querySelector("#out_log1").scrollHeight);
 									}
 									else if(state === 4 || state === 6){
-										binDecodeData += decodeHamming(binRowData.slice(-8));
+										binDecodeData += decodeExHamming(binRawData.slice(-8));
 
 										if(state === 6){		// ペイロード受信中
-											document.querySelector("#out_hex").innerText += parseInt(binRowData.slice(-8), 2).toString(16);
+											document.querySelector("#out_hex").innerText += parseInt(binRawData.slice(-8), 2).toString(16);
 											
-											if(decode(binRowData, 2) != ""){
-												document.querySelector("#out_text").value = decode(binRowData, 2);
+											if(decode(binRawData, 2) != ""){
+												document.querySelector("#out_text").value = decode(binRawData, 2);
 											}
 											else{
-												document.querySelector("#out_text").value += decode(binRowData.slice(-8), 2);
+												document.querySelector("#out_text").value += decode(binRawData.slice(-8), 2);
 											}
 										}
 										
 										binSize--;
 										document.querySelector("#field_size").innerText = binSize;
 										if(binSize === 0){	// フィールド受信終了
-											fields[binId] = binRowData;
-											document.querySelector("#out_log1").innerHTML += " ┗ " + binRowData + "<br />";
-											document.querySelector("#out_log1").scrollIntoView(false);
-											document.querySelector("#out_log1").scrollTo(0, document.querySelector("#out_log1").scrollHeight);
+											fields[binId] = binRawData;
+											//document.querySelector("#out_log1").innerHTML += " ┗ " + binRawData + "<br />";
 											state++;
 										}
 									}
 
+									document.querySelector("#out_log1").innerHTML += "<br />";
+									document.querySelector("#out_log1").scrollIntoView(false);
+									document.querySelector("#out_log1").scrollTo(0, document.querySelector("#out_log1").scrollHeight);
 								}
 							}
 							
