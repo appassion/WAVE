@@ -87,12 +87,12 @@ function logN(x, base){	// JavaScriptでは底を指定した対数が使えな�
 
 function encodeExHamming(input){
 	// 引数:文字列or配列(複数対応), 戻り値:文字列
-	var output = [];
+	let output = [];
 	if(!Array.isArray(input)){
 		input = input.split("");
 	}
-	for(var i=0,len=input.length; i<len; i+=4){
-		var buffer = input.slice(i, i+4);	//input.splice(0, 4);
+	for(let i=0,len=input.length; i<len; i+=4){
+		let buffer = input.slice(i, i+4);	//input.splice(0, 4);
 		buffer.push(String(+buffer[0] ^ +buffer[2] ^ +buffer[3]));
 		buffer.push(String(+buffer[0] ^ +buffer[1] ^ +buffer[3]));
 		buffer.push(String(+buffer[1] ^ +buffer[2] ^ +buffer[3]));
@@ -104,16 +104,16 @@ function encodeExHamming(input){
 
 function decodeExHamming(input){
 	// 引数:文字列or配列(複数対応), 戻り値:文字列
-	var output = [];
+	let output = [];
 	if(!Array.isArray(input)){
 		input = input.split("");
 	}
 	if(input.length%8 != 0){
 		return output.join("");
 	}
-	for(var i=0,len=input.length; i<len; i+=8){
-		var buffer = input.slice(i, i+8);	//input.splice(0, 8);
-		var check = [];
+	for(let i=0,len=input.length; i<len; i+=8){
+		let buffer = input.slice(i, i+8);	//input.splice(0, 8);
+		let check = [];
 		check.push(+buffer[0] ^ +buffer[2] ^ +buffer[3] ^ +buffer[4]);
 		check.push(+buffer[0] ^ +buffer[1] ^ +buffer[3] ^ +buffer[5]);
 		check.push(+buffer[1] ^ +buffer[2] ^ +buffer[3] ^ +buffer[6]);
@@ -143,7 +143,7 @@ function decodeExHamming(input){
 
 
 function encode(text, base=10){
-	var result = encodeURIComponent(text)
+	let result = encodeURIComponent(text)
 		.match(/%[0-9A-F]{2}|[^%]/g)
 		.map(e => (e.substr(0,1)=="%" ? parseInt(e.slice(1),16) : e.charCodeAt(0)));	// 10進数値配列
 	
@@ -156,8 +156,8 @@ function encode(text, base=10){
 }
 
 function decode(text, base=16){
-	var result = "";
-	for(var i=0,step=logN(2**8,base); i<text.length; i+=step){
+	let result = "";
+	for(let i=0,step=logN(2**8,base); i<text.length; i+=step){
 		result += "%" + parseInt(text.substr(i, step), base).toString(16).padStart(2, 0);	// n進文字列⇒16進文字列
 	}
 	
@@ -173,32 +173,31 @@ function decode(text, base=16){
 
 
 
-function createAverage(length=20, averageSize=4){
-	var data = [];
-	return function(x){
-		var mean = 0;
-		var median = 0;
-		var stdev = 100;
-		
-		data.push(x);
+function createStat(length=20){
+	let data = [];
+	return function(){
+		let mean = 0;
+		let median = 0;
+		let stdev = 100;
+
+		data.push(this.value);
 		if(data.length > length){
 			data.shift();
-		}
-		
-		if(data.length > averageSize){
-			var sorted = data.slice().sort((a, b) => a - b);
-			mean = data.slice(-averageSize).reduce((pre, curr, i) => pre + curr, 0) / averageSize;	// 末尾から指定要素数を抜き出し平均取得
+			let sorted = data.slice().sort((a, b) => a - b);
+			mean = data.slice(-data.length).reduce((pre, curr, i) => pre + curr, 0) / data.length;	// 末尾から指定要素数を抜き出し平均取得
 			median = (sorted[Math.floor(data.length / 2)] + sorted[Math.ceil(data.length / 2)]) / 2;
 			stdev = Math.sqrt(data.reduce((sum, curr, i) => sum + (curr - mean) ** 2, 0) / (data.length - 1));	// 不偏標準偏差(標本標準偏差)
 		}
 		
-		return {mean:mean, median:median, stdev:stdev};
+		this.mean = mean;
+		this.median = median;
+		this.stdev = stdev;
 	}
 }
 
 function createFIR(length=20, averageSize=7){
-	var data = [];
-	var coef = [];	// 係数:coefficient
+	let data = [];
+	let coef = [];	// 係数:coefficient
 	return function(x){
 		data.push(x);
 		if(data.length > length){
@@ -220,21 +219,21 @@ function createFIR(length=20, averageSize=7){
 function windowfunc(data){
 	if(!windowfunc.weights){
 		windowfunc.weights = Array(length);
-		for(var i=0,len=data.length; i<len; i++){
+		for(let i=0,len=data.length; i<len; i++){
 			windowfunc.weights[i] = 0.5-0.5*Math.cos(2*i*Math.PI/len);
 		}
 	}
 	
-	var result = Array(data.length);
-	for(var i=0,len=data.length; i<len; i++){
+	let result = Array(data.length);
+	for(let i=0,len=data.length; i<len; i++){
 		result[i] = data[i] * windowfunc.weights[i];
 	}
 	return result;
 }
 
 function LPFilter(data){
-	var result = Array(data.length);
-	for(var i=0,len=data.length; i<len; i++){
+	let result = Array(data.length);
+	for(let i=0,len=data.length; i<len; i++){
 		result[i] = (data[Math.max(i-1,0)] + data[i] + data[Math.min(i+1,len-1)]) / 3;
 	}
 	return result;
@@ -242,25 +241,25 @@ function LPFilter(data){
 
 function DFT(data, frec=[]){	// frecに設定された添字番号が2つなら範囲指定、3つ以上なら該当番号のみ返す
 	// first-last, begin-end, start-stop/finish
-	var length = data.length;
-	var start = frec.length>0 ? frec[0] : 0;
-	var end = frec.length>0 ? frec[frec.length-1] : length/2;
+	let length = data.length;
+	let start = frec.length>0 ? frec[0] : 0;
+	let end = frec.length>0 ? frec[frec.length-1] : length/2;
 	
 	if(!DFT.weights){
 		DFT.weights = {};
 		DFT.weights.re = Array(length);
 		DFT.weights.im = Array(length);
-		for(var i=0; i<length/2; i++){
+		for(let i=0; i<length/2; i++){
 			DFT.weights.re[i] = Array(length);
 			DFT.weights.im[i] = Array(length);
-			for(var j=0; j<length; j++){
+			for(let j=0; j<length; j++){
 				DFT.weights.re[i][j] = Math.cos(2*i*j*Math.PI/length);
 				DFT.weights.im[i][j] = -Math.sin(2*i*j*Math.PI/length);
 			}
 		}
 	}
 	
-	var spectrums = {};
+	let spectrums = {};
 	spectrums.re = Array(length);
 	spectrums.im = Array(length);
 	spectrums.abs = Array(length);
@@ -269,12 +268,12 @@ function DFT(data, frec=[]){	// frecに設定された添字番号が2つなら�
 	if(frec.length <= 2)
 		frec = Array(end - start + 1).fill(start).map((x, y) => x + y);	// range(start,end+1)
 	
-	frec.forEach(function(i){	//for(var i=start; i<end; i++)
+	frec.forEach(function(i){	//for(let i=start; i<end; i++)
 		spectrums.re[i] = 0;
 		spectrums.im[i] = 0;
-		for(var j=0; j<length; j++){
-			var w_re = DFT.weights.re[i][j];	// Math.cos(2*i*j*Math.PI/length);
-			var w_im = DFT.weights.im[i][j];	// -Math.sin(2*i*j*Math.PI/length);
+		for(let j=0; j<length; j++){
+			let w_re = DFT.weights.re[i][j];	// Math.cos(2*i*j*Math.PI/length);
+			let w_im = DFT.weights.im[i][j];	// -Math.sin(2*i*j*Math.PI/length);
 			spectrums.re[i] += w_re * data[j];
 			//spectrums.re[i] -= w_im * data.im[j];		// 入力データに虚数部が存在する場合
 			spectrums.im[i] += w_im * data[j];
@@ -298,36 +297,43 @@ function DFT(data, frec=[]){	// frecに設定された添字番号が2つなら�
 //oscillator.detune = 0セント	約-153600～+153600	1200セント=1オクターブ
 function send(source){
 	const bps = 0.25;	// シンボル間隔 = ΔT + GI(ガードインターバル)		1シンボルあたり同期信号の半周期のタイミングで送信
-	var audioContext = new (AudioContext || webkitAudioContext)();
+	let audioContext = new (AudioContext || webkitAudioContext)();
 	
-	var compressor = audioContext.createDynamicsCompressor();	// クリッピング(振幅値のオーバーフロー)による歪みを防止
-	//var gain = audioContext.createGain();
+	let compressor = audioContext.createDynamicsCompressor();	// クリッピング(振幅値のオーバーフロー)による歪みを防止
+	//let gain = audioContext.createGain();
 	compressor.connect(audioContext.destination);	// スピーカー(context.destination)に接続
 	
-	var oscillators = {
+	let oscillators = {
+		sync : [
+			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[18000, -18000]},	// PSK
+			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[19500, 19875]},
+			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[20625, 20250]},
+		],
 		data : [
-			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[20250, -20250]},	// PSK
-			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[21500, 21600]},
+			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[18750, -18750]},	// PSK
+			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[21375, 21750]},
 		],
 		check : [
-			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[21700, 21800]},
-		],
-		sync : [
-			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[20625, 21000]},
+			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[22500, 22875]},
 		],
 	};
 	
-	var payload = [0,1,0,1,1,0,0,1].concat(encodeExHamming(encode(source, 2)).split(""));
-	var preamble = [0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,1,1,0,1,1,0,0, 0,1,1,0,1,1,0,0];	// プリアンブル + 同期ワード(Start of Frame Delimiter(SFD):開始フレーム識別子,フレーム開始デリミタ)
-	var type = [0,1,1,1,0,0,1,0, 0,0,0,0,0,0,0,0];
-	var size = [0,0,1,1,0,1,0,1].concat(encodeExHamming((payload.length/8).toString(2).padStart(8*4/2, 0)).split(""));
-	//var fcs = [0,0,1,0,1,0,1,1];
-	var frame = preamble.concat(type).concat(size).concat(payload);
+	let payload = [0,1,0,1,1,0,0,1].concat(encodeExHamming(encode(source, 2)).split(""));
+	let preamble = [0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,1,1,0,1,1,0,0, 0,1,1,0,1,1,0,0];	// プリアンブル + 同期ワード(Start of Frame Delimiter(SFD):開始フレーム識別子,フレーム開始デリミタ)
+	let type = [0,1,1,1,0,0,1,0, 0,0,0,0,0,0,0,0];
+	let size = [0,0,1,1,0,1,0,1].concat(encodeExHamming((payload.length/8).toString(2).padStart(8*4/2, 0)).split(""));
+	//let fcs = [0,0,1,0,1,0,1,1];
+	let frame = preamble.concat(type).concat(size).concat(payload);
 	
-	var t_start = audioContext.currentTime;
-	var t = t_start;
+	let t_start = audioContext.currentTime;
+	let t = t_start;
 	frame.forEach((bit, i) => {
 		// データ信号,同期信号
+		oscillators.sync.forEach(e => {
+			e.oscillator.frequency.setValueAtTime(e.freq[i%2], t);
+			e.gain.gain.setValueAtTime(0.1, t);	// GI(ガードインターバル)
+			e.gain.gain.setValueAtTime(1.0, t + bps/5);
+		});
 		oscillators.data.forEach(e => {
 			e.oscillator.frequency.setValueAtTime(e.freq[bit], t);
 			e.gain.gain.setValueAtTime(0.1, t);	// GI(ガードインターバル)
@@ -338,11 +344,6 @@ function send(source){
 		//	e.gain.gain.setValueAtTime(0.1, t);	// GI(ガードインターバル)
 		//	e.gain.gain.setValueAtTime(1.0, t + bps/5);
 		//});
-		oscillators.sync.forEach(e => {
-			e.oscillator.frequency.setValueAtTime(e.freq[i%2], t);
-			e.gain.gain.setValueAtTime(0.1, t);	// GI(ガードインターバル)
-			e.gain.gain.setValueAtTime(1.0, t + bps/5);
-		});
 		t += bps;
 		
 		document.querySelector("#in_progressive").innerHTML += "<span>" + bit + "</span>" + ((i+1)%4 ? "" : " ");
@@ -354,31 +355,31 @@ function send(source){
 		})(i), (t-audioContext.currentTime)*1000);
 	});
 	
-	oscillators.data.forEach(e => {
-		e.oscillator.connect(e.gain);
-		e.gain.connect(compressor);
-	});
-	oscillators.check.forEach(e => {
-		e.oscillator.connect(e.gain);
-		e.gain.connect(compressor);
-	});
 	oscillators.sync.forEach(e => {
 		e.oscillator.connect(e.gain);
 		e.gain.connect(compressor);
 	});
+	oscillators.data.forEach(e => {
+		e.oscillator.connect(e.gain);
+		e.gain.connect(compressor);
+	});
+	//oscillators.check.forEach(e => {
+	//	e.oscillator.connect(e.gain);
+	//	e.gain.connect(compressor);
+	//});
 	
+	oscillators.sync.forEach(e => {
+		e.oscillator.start(t_start);
+		e.oscillator.stop(t);
+	});
 	oscillators.data.forEach(e => {
 		e.oscillator.start(t_start);	// + bps * preamble.length
 		e.oscillator.stop(t);
 	});
-	oscillators.check.forEach(e => {
-		e.oscillator.start(t_start);
-		e.oscillator.stop(t);
-	});
-	oscillators.sync.forEach(e => {
-		e.oscillator.start(t_start);
-		e.oscillator.stop(t);
-	});
+	//oscillators.check.forEach(e => {
+	//	e.oscillator.start(t_start);
+	//	e.oscillator.stop(t);
+	//});
 }
 
 
@@ -394,103 +395,115 @@ function receive(){
 			// bufferSize / n = (frequencyBinCount = spectrums.length = ナイキスト周波数) = fftSize / 2
 			
 			const bufferSize = 1024;	// 1024:0.02sごと
-			var audioContext = new (AudioContext || webkitAudioContext)();
-			var mediaStreamSource = audioContext.createMediaStreamSource(stream);
-			var scriptProcessor = audioContext.createScriptProcessor(bufferSize, 1, 1);	// 256~16384	ScriptProcessorをAudioWorkletに切り替える必要有
-			var audioAnalyser = audioContext.createAnalyser();
+			let audioContext = new (AudioContext || webkitAudioContext)();
+			let mediaStreamSource = audioContext.createMediaStreamSource(stream);
+			let scriptProcessor = audioContext.createScriptProcessor(bufferSize, 1, 1);	// 256~16384	ScriptProcessorをAudioWorkletに切り替える必要有
+			let audioAnalyser = audioContext.createAnalyser();
 			
 			audioAnalyser.smoothingTimeConstant = 0.0;	// 0.8:0.0～1.0	分析フレームの平均間隔を表す値で、使用例として時間的にスペクトルを平滑化させるのに用いられる
 			audioAnalyser.fftSize = bufferSize * 2;	// 2048:32,64,128,256,512,1024,2048,4096,8192,16384,32768
 			//audioAnalyser.maxDecibels	// 結果の範囲の最大値
 			//audioAnalyser.minDecibels	// 結果の範囲の最小値
-			var fsDivN = audioContext.sampleRate / audioAnalyser.fftSize;	// 23.4375=48000/2048
+			let fsDivN = audioContext.sampleRate / audioAnalyser.fftSize;	// 23.4375=48000/2048
 			
-			var canvas0 = document.querySelector("#canvas0");
-			var canvas1 = document.querySelector("#canvas1");
-			var canvas2 = document.querySelector("#canvas2");
-			var canvas3 = document.querySelector("#canvas3");
-			var canvasContext0 = canvas0.getContext('2d');
-			var canvasContext1 = canvas1.getContext('2d');
-			var canvasContext2 = canvas2.getContext('2d');
-			var canvasContext3 = canvas3.getContext('2d');
+			let canvas0 = document.querySelector("#canvas0");
+			let canvas1 = document.querySelector("#canvas1");
+			let canvas2 = document.querySelector("#canvas2");
+			let canvas3 = document.querySelector("#canvas3");
+			let canvasContext0 = canvas0.getContext('2d');
+			let canvasContext1 = canvas1.getContext('2d');
+			let canvasContext2 = canvas2.getContext('2d');
+			let canvasContext3 = canvas3.getContext('2d');
 			canvas1.width = audioAnalyser.frequencyBinCount;	//spectrums.length;
 			canvas1.height = 256;
 			canvas2.width = audioAnalyser.frequencyBinCount;	//spectrums.length;
 			canvas2.height = 256;
 			
-			var time = {
+			let time = {
 				process : {
 					pre : audioContext.currentTime,
 					delta : {
 						value : null,
-						ave : {mean:null, median:null, stdev:null},
-						aveFunc : createAverage(15, 4),
+						mean : null,
+						median : null,
+						stdev : null,
+						updateStat : createStat(15),
 					},
 				},
 				sync : {
 					pre : audioContext.currentTime,
 					delta : {
 						value : null,
-						ave : {mean:null, median:null, stdev:null},
-						aveFunc : createAverage(15, 4),
+						mean : null,
+						median : null,
+						stdev : null,
+						updateStat : createStat(15),
 					},
 				},
 			};
-			var num = {
+			let num = {
 				sync : {
 					value : null,
-					ave : {mean:null, median:null, stdev:null},
-					aveFunc : createAverage(20, 4),
+					mean : null,
+					median : null,
+					stdev : null,
+					updateStat : createStat(10),
 				},
 				data : {
 					value : null,
-					ave : {mean:null, median:null, stdev:null},
-					aveFunc : createAverage(20, 4),
+					mean : null,
+					median : null,
+					stdev : null,
+					updateStat : createStat(10),
 					result : null,
 				},
 				check : {
 					value : null,
-					ave : {mean:null, median:null, stdev:null},
-					aveFunc : createAverage(20, 4),
+					mean : null,
+					median : null,
+					stdev : null,
+					updateStat : createStat(10),
 					result : null,
 				},
 			};
-			var state = 0;	// 0:未受信, 1:同期信号受信開始, 2:同期信号受信完了(ビットレベルの同期), 3:同期ワード受信完了(バイトレベルの同期), 4:ヘッダ受信開始, 5:ヘッダ受信完了, 6:データ受信開始, 7:データ受信終了
-			var syncSign = -1;	// 上昇or下降
-			var fields = {};
-			var binId = "";
-			var binSize = 0;
-			//var binRawByte = "";
-			var binDecodeByte = "";
-			var binRawData = "";
-			var binDecodeData = "";
+			let state = 0;	// 0:未受信, 1:同期信号受信開始, 2:同期信号受信完了(ビットレベルの同期), 3:同期ワード受信完了(バイトレベルの同期), 4:ヘッダ受信開始, 5:ヘッダ受信完了, 6:データ受信開始, 7:データ受信終了
+			let syncSign = -1;	// 上昇or下降
+			let fields = {};
+			let binId = "";
+			let binSize = 0;
+			//let binRawByte = "";
+			let binDecodeByte = "";
+			let binRawData = "";
+			let binDecodeData = "";
 			
 			scriptProcessor.onaudioprocess = function(e){
 				// 時間を計測
 				time.process.delta.value = audioContext.currentTime - time.process.pre;
-				time.process.delta.ave = time.process.delta.aveFunc(time.process.delta.value);
+				time.process.delta.updateStat(time.process.delta.value);
 				time.process.pre = audioContext.currentTime;
 				document.querySelector("#time_process_value").innerText = time.process.delta.value;
-				document.querySelector("#time_process_mean").innerText = time.process.delta.ave.mean;
-				document.querySelector("#time_process_median").innerText = time.process.delta.ave.median;
-				document.querySelector("#time_process_stdev").innerText = time.process.delta.ave.stdev;
+				document.querySelector("#time_process_mean").innerText = time.process.delta.mean;
+				document.querySelector("#time_process_median").innerText = time.process.delta.median;
+				document.querySelector("#time_process_stdev").innerText = time.process.delta.stdev;
 				
 				// 波形を解析
-				var timeDomain = new Uint8Array(audioAnalyser.fftSize);	// 音声波形データ	fftSizeの大きさで格納されている
+				let timeDomain = new Uint8Array(audioAnalyser.fftSize);	// 音声波形データ	fftSizeの大きさで格納されている
 				audioAnalyser.getByteTimeDomainData(timeDomain);
-				var spectrums = new Uint8Array(audioAnalyser.frequencyBinCount);	// 周波数データ(frequencyBinCountはfftSizeの半分)
+				let spectrums = new Uint8Array(audioAnalyser.frequencyBinCount);	// 周波数データ(frequencyBinCountはfftSizeの半分)
 				audioAnalyser.getByteFrequencyData(spectrums);
 				// getFloatFrequencyData(Float32Array array) については、信号を FFT にかけた後のマグニチュードをポイント数で割って正規化し、対数を取って dB 化した値が返されるようで、通常の音楽信号なら大体 -30 ～ -60 あたりの値が出力されます。単位は dBFS/Hz のようなもの
 				// spectrumsの周波数(0～24000Hz) = sampleRate:48000 * i:0～1023 / fftSize:2048
 				
 				// 周波数データを表示
-				document.querySelector("#bar1_1").value = spectrums[Math.floor(20250 / fsDivN)] / 255 * 100;
-				document.querySelector("#bar1_2").value = spectrums[Math.floor(20625 / fsDivN)] / 255 * 100;
-				document.querySelector("#bar1_3").value = spectrums[Math.floor(21000 / fsDivN)] / 255 * 100;
-				document.querySelector("#bar1_4").value = spectrums[Math.floor(21500 / fsDivN)] / 255 * 100;
-				document.querySelector("#bar1_5").value = spectrums[Math.floor(21600 / fsDivN)] / 255 * 100;
+				document.querySelector("#bar1_19500").value = spectrums[Math.floor(19500 / fsDivN)] / 255 * 100;
+				document.querySelector("#bar1_19875").value = spectrums[Math.floor(19875 / fsDivN)] / 255 * 100;
+				document.querySelector("#bar1_20250").value = spectrums[Math.floor(20250 / fsDivN)] / 255 * 100;
+				document.querySelector("#bar1_20625").value = spectrums[Math.floor(20625 / fsDivN)] / 255 * 100;
+				document.querySelector("#bar1_21000").value = spectrums[Math.floor(21000 / fsDivN)] / 255 * 100;
+				document.querySelector("#bar1_21375").value = spectrums[Math.floor(21375 / fsDivN)] / 255 * 100;
+				document.querySelector("#bar1_21750").value = spectrums[Math.floor(21750 / fsDivN)] / 255 * 100;
 				canvasContext1.clearRect(0, 0, canvas1.width, canvas1.height);
-				for(var i=0,len=spectrums.length; i<len; i++){
+				for(let i=0,len=spectrums.length; i<len; i++){
 					if(i * audioContext.sampleRate % audioAnalyser.fftSize == 0){	//i*fsDivN
 						// 添字に対して周波数が割り切れる部分に目盛りを描画
 						canvasContext1.fillStyle = "#ddd";
@@ -504,14 +517,16 @@ function receive(){
 				}
 				
 				// 周波数データを表示
-				var spectrums2 = DFT(windowfunc(timeDomain), [Math.floor(20000 / fsDivN), Math.floor(22000 / fsDivN)]);	//
-				document.querySelector("#bar2_1").value = (spectrums2.abs[Math.floor(20250 / fsDivN)] ?? 1) / 255 * 100;
-				document.querySelector("#bar2_2").value = (spectrums2.abs[Math.floor(20625 / fsDivN)] ?? 1) / 255 * 100;
-				document.querySelector("#bar2_3").value = (spectrums2.abs[Math.floor(21000 / fsDivN)] ?? 1) / 255 * 100;
-				document.querySelector("#bar2_4").value = (spectrums2.abs[Math.floor(21500 / fsDivN)] ?? 1) / 255 * 100;
-				document.querySelector("#bar2_5").value = (spectrums2.abs[Math.floor(21600 / fsDivN)] ?? 1) / 255 * 100;
+				let spectrums2 = DFT(windowfunc(timeDomain), [Math.floor(18000 / fsDivN), Math.floor(22000 / fsDivN)]);	//
+				document.querySelector("#bar2_19500").value = (spectrums2.abs[Math.floor(19500 / fsDivN)] ?? 1) / 255 * 100;
+				document.querySelector("#bar2_19875").value = (spectrums2.abs[Math.floor(19875 / fsDivN)] ?? 1) / 255 * 100;
+				document.querySelector("#bar2_20250").value = (spectrums2.abs[Math.floor(20250 / fsDivN)] ?? 1) / 255 * 100;
+				document.querySelector("#bar2_20625").value = (spectrums2.abs[Math.floor(20625 / fsDivN)] ?? 1) / 255 * 100;
+				document.querySelector("#bar2_21000").value = (spectrums2.abs[Math.floor(21000 / fsDivN)] ?? 1) / 255 * 100;
+				document.querySelector("#bar2_21375").value = (spectrums2.abs[Math.floor(21375 / fsDivN)] ?? 1) / 255 * 100;
+				document.querySelector("#bar2_21750").value = (spectrums2.abs[Math.floor(21750 / fsDivN)] ?? 1) / 255 * 100;
 				canvasContext2.clearRect(0, 0, canvas2.width, canvas2.height);
-				for(var i=0,len=spectrums2.abs.length/2; i<len; i++){
+				for(let i=0,len=spectrums2.abs.length/2; i<len; i++){
 					if(i * audioContext.sampleRate % audioAnalyser.fftSize == 0){	//i*fsDivN
 						// 添字に対して周波数が割り切れる部分に目盛りを描画
 						canvasContext2.fillStyle = "#ddd";
@@ -526,48 +541,53 @@ function receive(){
 				
 				
 				
+				num.sync.value = 0;
+				num.sync.value -= spectrums[Math.floor(19500/fsDivN)];
+				num.sync.value += spectrums[Math.floor(19875/fsDivN)];
+				num.sync.value -= spectrums[Math.floor(20625/fsDivN)];
+				num.sync.value += spectrums[Math.floor(20250/fsDivN)];
+				num.sync.updateStat(num.sync.value);
 				
-				num.sync.value = spectrums[Math.floor(21000/fsDivN)] - spectrums[Math.floor(20625/fsDivN)];
-				num.sync.ave = num.sync.aveFunc(num.sync.value);
+				num.data.value = 0;
+				num.data.value -= spectrums[Math.floor(21375/fsDivN)];
+				num.data.value += spectrums[Math.floor(21750/fsDivN)];
+				num.data.updateStat(num.data.value);
+				num.data.result = (num.data.mean > 0) * 1;
 				
-				num.data.value = spectrums[Math.floor(21600/fsDivN)] - spectrums[Math.floor(21500/fsDivN)];
-				num.data.ave = num.data.aveFunc(num.data.value);
-				num.data.result = (num.data.ave.mean > 0) * 1;
-				
-				num.check.value = spectrums[Math.floor(21800/fsDivN)] - spectrums[Math.floor(21700/fsDivN)];
-				num.check.ave = num.check.aveFunc(num.check.value);
-				num.check.result = (num.check.ave.mean > 0) * 1;
+				//num.check.value = spectrums[Math.floor(21800/fsDivN)] - spectrums[Math.floor(21700/fsDivN)];
+				//num.check.updateStat(num.check.value);
+				//num.check.result = (num.check.mean > 0) * 1;
 				
 				document.querySelector("#sync_value").innerText = num.sync.value;
-				document.querySelector("#sync_mean").innerText = num.sync.ave.mean;
-				document.querySelector("#sync_median").innerText = num.sync.ave.median;
-				document.querySelector("#sync_stdev").innerText = num.sync.ave.stdev;
+				document.querySelector("#sync_mean").innerText = num.sync.mean;
+				document.querySelector("#sync_median").innerText = num.sync.median;
+				document.querySelector("#sync_stdev").innerText = num.sync.stdev;
 				
 				document.querySelector("#data_value").innerText = num.data.value;
-				document.querySelector("#data_mean").innerText = num.data.ave.mean;
-				document.querySelector("#data_median").innerText = num.data.ave.median;
-				document.querySelector("#data_stdev").innerText = num.data.ave.stdev;
+				document.querySelector("#data_mean").innerText = num.data.mean;
+				document.querySelector("#data_median").innerText = num.data.median;
+				document.querySelector("#data_stdev").innerText = num.data.stdev;
 				
-				if(Math.sign(syncSign) === Math.sign(num.sync.ave.mean)){
+				if(Math.sign(syncSign) === Math.sign(num.sync.mean)){
 					
 					syncSign += Math.sign(syncSign);
-					if(Math.abs(syncSign) >= 3){			// 同じ符号が連続で続いた場合
+					if(Math.abs(syncSign) >= 7){			// 同じ符号が連続で続いた場合
 						syncSign = -Math.sign(syncSign);	// 符号を反転させる
 						
 						// 時間を計測	同期信号取得中
 						time.sync.delta.value = audioContext.currentTime - time.sync.pre;
-						time.sync.delta.ave = time.sync.delta.aveFunc(time.sync.delta.value);
+						time.sync.delta.updateStat(time.sync.delta.value);
 						time.sync.pre = audioContext.currentTime;
 						document.querySelector("#time_sync_value").innerText = time.sync.delta.value;
-						document.querySelector("#time_sync_mean").innerText = time.sync.delta.ave.mean;
-						document.querySelector("#time_sync_median").innerText = time.sync.delta.ave.median;
-						document.querySelector("#time_sync_stdev").innerText = time.sync.delta.ave.stdev;
+						document.querySelector("#time_sync_mean").innerText = time.sync.delta.mean;
+						document.querySelector("#time_sync_median").innerText = time.sync.delta.median;
+						document.querySelector("#time_sync_stdev").innerText = time.sync.delta.stdev;
 						
-						if(state === 0 && time.sync.delta.ave.stdev < 100){
+						if(state === 0 && time.sync.delta.stdev < 100){
 							state++;
 						}
 						
-						if(time.sync.delta.ave.stdev < 0.1){	// 同期信号の切り替え間隔の標準偏差が0.1未満の場合、同期信号取得成功
+						if(time.sync.delta.stdev < 0.1){	// 同期信号の切り替え間隔の標準偏差が0.1未満の場合、同期信号取得成功
 							binRawData += num.data.result;
 							document.querySelector("#dataResult").innerText = num.data.result;
 							
@@ -672,7 +692,10 @@ function receive(){
 				//canvasContext3.fillRect(canvas3.dataset.count, canvas3.height / 2 - (spectrums2.arg[Math.floor(20250 / fsDivN)] ?? 0) * 100, 1, 2);
 				canvasContext3.fillRect(
 					canvas3.dataset.count,
-					canvas3.height / 2 - ((spectrums2.arg[Math.floor((Math.sign(num.sync.value)==1 ? 21000 : 20625) / fsDivN)] ?? 0) - (spectrums2.arg[Math.floor(20250 / fsDivN)] ?? 0)) * 100,
+					canvas3.height / 2 - (
+						(spectrums2.arg[Math.floor(18000 / fsDivN)] ?? 0)
+						-(spectrums2.arg[Math.floor(18750 / fsDivN)] ?? 0)
+					) * 100,
 					1,
 					2
 				);	// 同期信号の位相データと比較
@@ -681,23 +704,29 @@ function receive(){
 				
 				
 				
-				// データを表示
+				// 同期信号を表示
 				canvasContext0.clearRect(canvas0.dataset.count, 0, 20, canvas0.height);
 				canvasContext0.globalCompositeOperation = "multiply";	//lighter
-				canvasContext0.fillStyle = "#0f0";
+				canvasContext0.fillStyle = "#666";
 				canvasContext0.fillRect(canvas0.dataset.count, canvas0.height/2 - num.sync.value, 1, num.sync.value);
-				canvasContext0.fillStyle = "#00f";
-				canvasContext0.fillRect(canvas0.dataset.count, canvas0.height/2 - num.sync.ave.mean, 1, num.sync.ave.mean);
-				//if(num.data.value !== null){
-				//	canvasContext0.fillStyle = "#f00";
-				//	canvasContext0.fillRect(canvas0.dataset.count, canvas0.height/2 - (num.data.value*200-100), 1, num.data.value*200-100);
-				//}
+				if(canvas0.dataset.count == 0){
+					//canvasContext0.lineWidth = 1;
+					canvasContext0.strokeStyle = "#00f";
+					canvasContext0.beginPath();
+					canvasContext0.moveTo(1, canvas0.height/2);
+				}
+				else{
+					canvasContext0.lineTo(canvas0.dataset.count, canvas0.height/2 - num.sync.mean);
+					canvasContext0.stroke();
+					canvasContext0.beginPath();
+					canvasContext0.moveTo(canvas0.dataset.count, canvas0.height/2 - num.sync.mean);
+				}
 				canvas0.dataset.count = (canvas0.dataset.count*1 + 1) % canvas0.width;
 				
 				
 				
-				//document.querySelector("#out_log1").innerText = num.sync.ave.median;
-				//document.querySelector("#out_log1").innerText += (audioContext.currentTime - t) + "<br / >";
+				//document.querySelector("#out_log1").innerText = num.sync.median;
+				//document.querySelector("#out_log1").innerText += (audioContext.currentTime - t) + "<br />";
 			};
 			
 			scriptProcessor.connect(audioContext.destination);
@@ -716,7 +745,7 @@ window.addEventListener("load", function(){
 	
 	/*
 	Array(16).fill(0).forEach((e, i) => {
-		var s = encodeHamming((i).toString(2).padStart(4, 0).split(""));
+		let s = encodeHamming((i).toString(2).padStart(4, 0).split(""));
 		document.querySelector("#out_log1").innerHTML += s + " " + decode(s, 2) + "<br />";
 	});
 	// */
@@ -833,20 +862,44 @@ window.addEventListener("unload", function(){
 		<br />
 		
 		<div style="display:inline-block; font-family:monospace;">
-			20250 <meter max="100" value="0" id="bar1_1"></meter><br />
-			<br />
-			20625 <meter max="100" value="0" id="bar1_2"></meter><br />
-			21000 <meter max="100" value="0" id="bar1_3"></meter><br />
-			21500 <meter max="100" value="0" id="bar1_4"></meter><br />
-			21600 <meter max="100" value="0" id="bar1_5"></meter><br />
+			<!--
+			18000 <meter max="100" value="0" id="bar1_18000"></meter><br />
+			18375 <meter max="100" value="0" id="bar1_18375"></meter><br />
+			18750 <meter max="100" value="0" id="bar1_18750"></meter><br />
+			19125 <meter max="100" value="0" id="bar1_19125"></meter><br />
+			-->
+			19500 <meter max="100" value="0" id="bar1_19500"></meter><br />
+			19875 <meter max="100" value="0" id="bar1_19875"></meter><br />
+			20250 <meter max="100" value="0" id="bar1_20250"></meter><br />
+			20625 <meter max="100" value="0" id="bar1_20625"></meter><br />
+			21000 <meter max="100" value="0" id="bar1_21000"></meter><br />
+			21375 <meter max="100" value="0" id="bar1_21375"></meter><br />
+			21750 <meter max="100" value="0" id="bar1_21750"></meter><br />
+			<!--
+			22125 <meter max="100" value="0" id="bar1_22125"></meter><br />
+			22500 <meter max="100" value="0" id="bar1_22500"></meter><br />
+			22875 <meter max="100" value="0" id="bar1_22875"></meter><br />
+			-->
 		</div>
 		<div style="display:inline-block; font-family:monospace;">
-			20250 <meter max="100" value="0" id="bar2_1"></meter><br />
-			<br />
-			20625 <meter max="100" value="0" id="bar2_2"></meter><br />
-			21000 <meter max="100" value="0" id="bar2_3"></meter><br />
-			21500 <meter max="100" value="0" id="bar2_4"></meter><br />
-			21600 <meter max="100" value="0" id="bar2_5"></meter><br />
+			<!--
+			18000 <meter max="100" value="0" id="bar2_18000"></meter><br />
+			18375 <meter max="100" value="0" id="bar2_18375"></meter><br />
+			18750 <meter max="100" value="0" id="bar2_18750"></meter><br />
+			19125 <meter max="100" value="0" id="bar2_19125"></meter><br />
+			-->
+			19500 <meter max="100" value="0" id="bar2_19500"></meter><br />
+			19875 <meter max="100" value="0" id="bar2_19875"></meter><br />
+			20250 <meter max="100" value="0" id="bar2_20250"></meter><br />
+			20625 <meter max="100" value="0" id="bar2_20625"></meter><br />
+			21000 <meter max="100" value="0" id="bar2_21000"></meter><br />
+			21375 <meter max="100" value="0" id="bar2_21375"></meter><br />
+			21750 <meter max="100" value="0" id="bar2_21750"></meter><br />
+			<!--
+			22125 <meter max="100" value="0" id="bar2_22125"></meter><br />
+			22500 <meter max="100" value="0" id="bar2_22500"></meter><br />
+			22875 <meter max="100" value="0" id="bar2_22875"></meter><br />
+			-->
 		</div>
 		<br />
 		
