@@ -17,48 +17,55 @@
 <style type="text/css">
 
 * {
-	-moz-box-sizing:border-box;
-	-webkit-box-sizing:border-box;
-	-o-box-sizing:border-box;
-	-ms-box-sizing:border-box;
-	box-sizing:border-box;
+	-moz-box-sizing: border-box;
+	-webkit-box-sizing: border-box;
+	-o-box-sizing: border-box;
+	-ms-box-sizing: border-box;
+	box-sizing: border-box;
 }
 
 /*
 html {
-	margin:0;
-	height:100%;
+	margin: 0;
+	height: 100%;
 }
 */
 body {
 /*
-	margin:0;
-	height:100%;
+	margin: 0;
+	height: 100%;
 */
 	background: #f0f0e0;
 	color: #0f0f1f;
-	font-family:"Helvetica Neue", Helvetica, "Arial Unicode MS", Arial, sans-serif;
+	font-family: "Helvetica Neue", Helvetica, "Arial Unicode MS", Arial, sans-serif;
 	/*/
-	font-family:monospace;/**/
+	font-family: monospace;/**/
 }
 
 main {
-	margin:1ex;
+	margin: 1ex;
 }
 
 .statistics tr td {
-	width:24ex;
+	width: 24ex;
 }
 .dashed {
-	border:dashed 1px #333;
+	border: dashed 1px #333;
 }
 
+
 #out_log1 {
-	height:4em;
-	overflow-y:scroll;
-	resize:vertical;
-	border-style:inset;
-	font-family:monospace;
+	height: 4em;
+	overflow-y: scroll;
+	resize: vertical;
+	border-style: inset;
+	font-family: monospace;
+}
+#out_binary {
+	word-break: break-all;
+}
+#out_hex {
+	word-break: break-all;
 }
 
 </style>
@@ -173,28 +180,6 @@ function decode(text, base=16){
 
 
 
-function createStat(length=20){
-	let data = [];
-	return function(){
-		let mean = 0;
-		let median = 0;
-		let stdev = 100;
-
-		data.push(this.value);
-		if(data.length > length){
-			data.shift();
-			let sorted = data.slice().sort((a, b) => a - b);
-			mean = data.slice(-data.length).reduce((pre, curr, i) => pre + curr, 0) / data.length;	// 末尾から指定要素数を抜き出し平均取得
-			median = (sorted[Math.floor(data.length / 2)] + sorted[Math.ceil(data.length / 2)]) / 2;
-			stdev = Math.sqrt(data.reduce((sum, curr, i) => sum + (curr - mean) ** 2, 0) / (data.length - 1));	// 不偏標準偏差(標本標準偏差)
-		}
-		
-		this.mean = mean;
-		this.median = median;
-		this.stdev = stdev;
-	}
-}
-
 function createFIR(length=20, averageSize=7){
 	let data = [];
 	let coef = [];	// 係数:coefficient
@@ -296,7 +281,7 @@ function DFT(data, frec=[]){	// frecに設定された添字番号が2つなら�
 //oscillator.frequency = 440Hz	0～±ナイキスト周波数(サンプリング周波数の1/2=22050Hz)	負数は逆位相
 //oscillator.detune = 0セント	約-153600～+153600	1200セント=1オクターブ
 function send(source){
-	const bps = 0.25;	// シンボル間隔 = ΔT + GI(ガードインターバル)		1シンボルあたり同期信号の半周期のタイミングで送信
+	const time = 0.25;	// シンボル間隔 = ΔT + GI(ガードインターバル)		1シンボルあたり同期信号の半周期のタイミングで送信
 	let audioContext = new (AudioContext || webkitAudioContext)();
 	
 	let compressor = audioContext.createDynamicsCompressor();	// クリッピング(振幅値のオーバーフロー)による歪みを防止
@@ -313,9 +298,6 @@ function send(source){
 			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[18750, -18750]},	// PSK
 			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[21375, 21750]},
 		],
-		check : [
-			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[22500, 22875]},
-		],
 	};
 	
 	let payload = [0,1,0,1,1,0,0,1].concat(encodeExHamming(encode(source, 2)).split(""));
@@ -331,20 +313,23 @@ function send(source){
 		// データ信号,同期信号
 		oscillators.sync.forEach(e => {
 			e.oscillator.frequency.setValueAtTime(e.freq[i%2], t);
-			e.gain.gain.setValueAtTime(0.1, t);	// GI(ガードインターバル)
-			e.gain.gain.setValueAtTime(1.0, t + bps/5);
+			e.gain.gain.setValueAtTime(0.0, t + time*0.0);
+			e.gain.gain.setValueAtTime(0.0, t + time*0.1);
+			e.gain.gain.setValueAtTime(1.0, t + time*0.2);
+			e.gain.gain.setValueAtTime(1.0, t + time*0.8);
+			e.gain.gain.setValueAtTime(0.0, t + time*0.9);
+			e.gain.gain.setValueAtTime(0.0, t + time*1.0);
 		});
 		oscillators.data.forEach(e => {
 			e.oscillator.frequency.setValueAtTime(e.freq[bit], t);
-			e.gain.gain.setValueAtTime(0.1, t);	// GI(ガードインターバル)
-			e.gain.gain.setValueAtTime(1.0, t + bps/5);
+			e.gain.gain.setValueAtTime(0.0, t + time*0.0);
+			e.gain.gain.setValueAtTime(0.0, t + time*0.1);
+			e.gain.gain.setValueAtTime(1.0, t + time*0.2);
+			e.gain.gain.setValueAtTime(1.0, t + time*0.8);
+			e.gain.gain.setValueAtTime(0.0, t + time*0.9);
+			e.gain.gain.setValueAtTime(0.0, t + time*1.0);
 		});
-		//oscillators.check.forEach(e => {
-		//	e.oscillator.frequency.setValueAtTime(e.freq[encodeHamming(frame)[i]], t);
-		//	e.gain.gain.setValueAtTime(0.1, t);	// GI(ガードインターバル)
-		//	e.gain.gain.setValueAtTime(1.0, t + bps/5);
-		//});
-		t += bps;
+		t += time;
 		
 		document.querySelector("#in_progressive").innerHTML += "<span>" + bit + "</span>" + ((i+1)%4 ? "" : " ");
 		setTimeout((i => {
@@ -363,10 +348,6 @@ function send(source){
 		e.oscillator.connect(e.gain);
 		e.gain.connect(compressor);
 	});
-	//oscillators.check.forEach(e => {
-	//	e.oscillator.connect(e.gain);
-	//	e.gain.connect(compressor);
-	//});
 	
 	oscillators.sync.forEach(e => {
 		e.oscillator.start(t_start);
@@ -376,10 +357,6 @@ function send(source){
 		e.oscillator.start(t_start);	// + bps * preamble.length
 		e.oscillator.stop(t);
 	});
-	//oscillators.check.forEach(e => {
-	//	e.oscillator.start(t_start);
-	//	e.oscillator.stop(t);
-	//});
 }
 
 
@@ -406,19 +383,45 @@ function receive(){
 			//audioAnalyser.minDecibels	// 結果の範囲の最小値
 			let fsDivN = audioContext.sampleRate / audioAnalyser.fftSize;	// 23.4375=48000/2048
 			
-			let canvas0 = document.querySelector("#canvas0");
-			let canvas1 = document.querySelector("#canvas1");
-			let canvas2 = document.querySelector("#canvas2");
-			let canvas3 = document.querySelector("#canvas3");
-			let canvasContext0 = canvas0.getContext('2d');
-			let canvasContext1 = canvas1.getContext('2d');
-			let canvasContext2 = canvas2.getContext('2d');
-			let canvasContext3 = canvas3.getContext('2d');
-			canvas1.width = audioAnalyser.frequencyBinCount;	//spectrums.length;
-			canvas1.height = 256;
-			canvas2.width = audioAnalyser.frequencyBinCount;	//spectrums.length;
-			canvas2.height = 256;
+			let canvasScope1 = document.querySelector("#canvasScope1");
+			let canvasScope2 = document.querySelector("#canvasScope2");
+			let canvasSpectrum1 = document.querySelector("#canvasSpectrum1");
+			let canvasSpectrum2 = document.querySelector("#canvasSpectrum2");
+			let canvasPlot1 = document.querySelector("#canvasPlot1");
+			let canvasContextScope1 = canvasScope1.getContext('2d');
+			let canvasContextScope2 = canvasScope2.getContext('2d');
+			let canvasContextSpectrum1 = canvasSpectrum1.getContext('2d');
+			let canvasContextSpectrum2 = canvasSpectrum2.getContext('2d');
+			let canvasContextPlot1 = canvasPlot1.getContext('2d');
+			canvasSpectrum1.width = audioAnalyser.frequencyBinCount;	//spectrums.length;
+			canvasSpectrum1.height = 256;
+			canvasSpectrum2.width = audioAnalyser.frequencyBinCount;	//spectrums.length;
+			canvasSpectrum2.height = 256;
 			
+			let createStat = function(length=47, domain=10, normalize=false){
+				// 移動平均(正規化),中央値,不偏標準偏差を算出
+				this.mean = 0;
+				this.median = 0;
+				this.stdev = 100;
+				let data = [];
+				return function(){
+					// 入力:this.value / 出力:this.mean,this.median,this.stdev
+					data.push(this.value);
+					let offset = 0;
+					if(data.length > length){
+						data.shift();
+						offset = 0.5 * data.reduce((pre, curr, i) => pre + curr, 0) / data.length;	// 正規化(平均が0に近くなるよう平行移動)用のオフセット
+					}
+					if(data.length >= domain){
+						let range = data.slice(-domain).sort((a, b) => a - b);	// 末尾から指定要素数を抽出し昇順でソート
+						this.mean = range.reduce((pre, curr, i) => pre + curr, 0) / range.length;
+						this.median = (range[Math.floor(range.length / 2)] + range[Math.ceil(range.length / 2)]) / 2;
+						this.stdev = Math.sqrt(range.reduce((sum, curr, i) => sum + (curr - this.mean) ** 2, 0) / (range.length - 1));	// 不偏標準偏差(標本標準偏差)
+						if(normalize)
+							this.mean -= offset;	// 移動平均結果に対し原点が0に近くなるようオフセット
+					}
+				};
+			};
 			let time = {
 				process : {
 					pre : audioContext.currentTime,
@@ -427,7 +430,7 @@ function receive(){
 						mean : null,
 						median : null,
 						stdev : null,
-						updateStat : createStat(15),
+						updateStat : createStat(20, 15),
 					},
 				},
 				sync : {
@@ -437,7 +440,7 @@ function receive(){
 						mean : null,
 						median : null,
 						stdev : null,
-						updateStat : createStat(15),
+						updateStat : createStat(20, 15),
 					},
 				},
 			};
@@ -447,25 +450,18 @@ function receive(){
 					mean : null,
 					median : null,
 					stdev : null,
-					updateStat : createStat(10),
+					updateStat : createStat(47, 10, true),
 				},
 				data : {
 					value : null,
 					mean : null,
 					median : null,
 					stdev : null,
-					updateStat : createStat(10),
-					result : null,
-				},
-				check : {
-					value : null,
-					mean : null,
-					median : null,
-					stdev : null,
-					updateStat : createStat(10),
+					updateStat : createStat(47, 10),
 					result : null,
 				},
 			};
+
 			let state = 0;	// 0:未受信, 1:同期信号受信開始, 2:同期信号受信完了(ビットレベルの同期), 3:同期ワード受信完了(バイトレベルの同期), 4:ヘッダ受信開始, 5:ヘッダ受信完了, 6:データ受信開始, 7:データ受信終了
 			let syncSign = -1;	// 上昇or下降
 			let fields = {};
@@ -479,7 +475,7 @@ function receive(){
 			scriptProcessor.onaudioprocess = function(e){
 				// 時間を計測
 				time.process.delta.value = audioContext.currentTime - time.process.pre;
-				time.process.delta.updateStat(time.process.delta.value);
+				time.process.delta.updateStat();
 				time.process.pre = audioContext.currentTime;
 				document.querySelector("#time_process_value").innerText = time.process.delta.value;
 				document.querySelector("#time_process_mean").innerText = time.process.delta.mean;
@@ -502,18 +498,18 @@ function receive(){
 				document.querySelector("#bar1_21000").value = spectrums[Math.floor(21000 / fsDivN)] / 255 * 100;
 				document.querySelector("#bar1_21375").value = spectrums[Math.floor(21375 / fsDivN)] / 255 * 100;
 				document.querySelector("#bar1_21750").value = spectrums[Math.floor(21750 / fsDivN)] / 255 * 100;
-				canvasContext1.clearRect(0, 0, canvas1.width, canvas1.height);
+				canvasContextSpectrum1.clearRect(0, 0, canvasSpectrum1.width, canvasSpectrum1.height);
 				for(let i=0,len=spectrums.length; i<len; i++){
 					if(i * audioContext.sampleRate % audioAnalyser.fftSize == 0){	//i*fsDivN
 						// 添字に対して周波数が割り切れる部分に目盛りを描画
-						canvasContext1.fillStyle = "#ddd";
-						canvasContext1.fillRect(i, 40, 1, canvas1.height);
-						canvasContext1.fillStyle = "#999";
-						canvasContext1.textAlign = "center";
-						canvasContext1.fillText(i*fsDivN, i, 10+10*(i/16%4));
+						canvasContextSpectrum1.fillStyle = "#ddd";
+						canvasContextSpectrum1.fillRect(i, 40, 1, canvasSpectrum1.height);
+						canvasContextSpectrum1.fillStyle = "#999";
+						canvasContextSpectrum1.textAlign = "center";
+						canvasContextSpectrum1.fillText(i*fsDivN, i, 10+10*(i/16%4));
 					}
-					canvasContext1.fillStyle = "#000";
-					canvasContext1.fillRect(i, canvas1.height-spectrums[i], 1, canvas1.height);
+					canvasContextSpectrum1.fillStyle = "#000";
+					canvasContextSpectrum1.fillRect(i, canvasSpectrum1.height-spectrums[i], 1, canvasSpectrum1.height);
 				}
 				
 				// 周波数データを表示
@@ -525,18 +521,18 @@ function receive(){
 				document.querySelector("#bar2_21000").value = (spectrums2.abs[Math.floor(21000 / fsDivN)] ?? 1) / 255 * 100;
 				document.querySelector("#bar2_21375").value = (spectrums2.abs[Math.floor(21375 / fsDivN)] ?? 1) / 255 * 100;
 				document.querySelector("#bar2_21750").value = (spectrums2.abs[Math.floor(21750 / fsDivN)] ?? 1) / 255 * 100;
-				canvasContext2.clearRect(0, 0, canvas2.width, canvas2.height);
+				canvasContextSpectrum2.clearRect(0, 0, canvasSpectrum2.width, canvasSpectrum2.height);
 				for(let i=0,len=spectrums2.abs.length/2; i<len; i++){
 					if(i * audioContext.sampleRate % audioAnalyser.fftSize == 0){	//i*fsDivN
 						// 添字に対して周波数が割り切れる部分に目盛りを描画
-						canvasContext2.fillStyle = "#ddd";
-						canvasContext2.fillRect(i, 40, 1, canvas2.height);
-						canvasContext2.fillStyle = "#999";
-						canvasContext2.textAlign = "center";
-						canvasContext2.fillText(i*fsDivN, i, 10+10*(i/16%4));
+						canvasContextSpectrum2.fillStyle = "#ddd";
+						canvasContextSpectrum2.fillRect(i, 40, 1, canvasSpectrum2.height);
+						canvasContextSpectrum2.textAlign = "center";
+						canvasContextSpectrum2.fillStyle = "#999";
+						canvasContextSpectrum2.fillText(i*fsDivN, i, 10+10*(i/16%4));
 					}
-					canvasContext2.fillStyle = "hsl(" + (spectrums2.arg[i] ?? 0) * 360 + ", 100%, " + (spectrums2.abs[i] >= 5 ? 40 : 0) + "%)";
-					canvasContext2.fillRect(i, canvas2.height - (spectrums2.abs[i] ?? 1), 1, canvas2.height);
+					canvasContextSpectrum2.fillStyle = "hsl(" + (spectrums2.arg[i] ?? 0) * 360 + ", 100%, " + (spectrums2.abs[i] >= 5 ? 40 : 0) + "%)";
+					canvasContextSpectrum2.fillRect(i, canvasSpectrum2.height - (spectrums2.abs[i] ?? 1), 1, canvasSpectrum2.height);
 				}
 				
 				
@@ -546,17 +542,13 @@ function receive(){
 				num.sync.value += spectrums[Math.floor(19875/fsDivN)];
 				num.sync.value -= spectrums[Math.floor(20625/fsDivN)];
 				num.sync.value += spectrums[Math.floor(20250/fsDivN)];
-				num.sync.updateStat(num.sync.value);
+				num.sync.updateStat();
 				
 				num.data.value = 0;
 				num.data.value -= spectrums[Math.floor(21375/fsDivN)];
 				num.data.value += spectrums[Math.floor(21750/fsDivN)];
-				num.data.updateStat(num.data.value);
+				num.data.updateStat();
 				num.data.result = (num.data.mean > 0) * 1;
-				
-				//num.check.value = spectrums[Math.floor(21800/fsDivN)] - spectrums[Math.floor(21700/fsDivN)];
-				//num.check.updateStat(num.check.value);
-				//num.check.result = (num.check.mean > 0) * 1;
 				
 				document.querySelector("#sync_value").innerText = num.sync.value;
 				document.querySelector("#sync_mean").innerText = num.sync.mean;
@@ -576,24 +568,22 @@ function receive(){
 						
 						// 時間を計測	同期信号取得中
 						time.sync.delta.value = audioContext.currentTime - time.sync.pre;
-						time.sync.delta.updateStat(time.sync.delta.value);
+						time.sync.delta.updateStat();
 						time.sync.pre = audioContext.currentTime;
 						document.querySelector("#time_sync_value").innerText = time.sync.delta.value;
 						document.querySelector("#time_sync_mean").innerText = time.sync.delta.mean;
 						document.querySelector("#time_sync_median").innerText = time.sync.delta.median;
 						document.querySelector("#time_sync_stdev").innerText = time.sync.delta.stdev;
 						
-						if(state === 0 && time.sync.delta.stdev < 100){
+						if(state === 0 && time.sync.delta.stdev < 100)
 							state++;
-						}
 						
 						if(time.sync.delta.stdev < 0.1){	// 同期信号の切り替え間隔の標準偏差が0.1未満の場合、同期信号取得成功
 							binRawData += num.data.result;
 							document.querySelector("#dataResult").innerText = num.data.result;
 							
-							if(state === 6){
+							if(state === 6)
 								document.querySelector("#out_binary").innerText += num.data.result;
-							}
 							
 							if(state === 1){
 								// ビットレベル同期完了
@@ -653,12 +643,10 @@ function receive(){
 										if(state === 6){		// ペイロード受信中
 											document.querySelector("#out_hex").innerText += parseInt(binDecodeByte, 2).toString(16);
 											
-											if(decode(binDecodeData, 2) != ""){
+											if(decode(binDecodeData, 2) != "")
 												document.querySelector("#out_text").value = decode(binDecodeData, 2);
-											}
-											else{
+											else
 												document.querySelector("#out_text").value += decode(binDecodeByte, 2);
-											}
 										}
 										
 										binSize--;
@@ -673,12 +661,18 @@ function receive(){
 									}
 
 									document.querySelector("#out_log1").innerHTML += "<br />";
-									document.querySelector("#out_log1").scrollIntoView(false);
 									document.querySelector("#out_log1").scrollTo(0, document.querySelector("#out_log1").scrollHeight);
+									//document.querySelector("#out_log1").scrollIntoView(false);
 								}
 							}
 							
 							
+						}
+						else{
+							if(state === 2){
+								// ビットレベル同期を未完了に戻す
+								state--;
+							}
 						}
 						document.querySelector("#status").innerText = state;
 					}
@@ -688,41 +682,60 @@ function receive(){
 				
 				
 				// 位相データを表示
-				canvasContext3.clearRect(canvas3.dataset.count, 0, 20, canvas3.height);
-				//canvasContext3.fillRect(canvas3.dataset.count, canvas3.height / 2 - (spectrums2.arg[Math.floor(20250 / fsDivN)] ?? 0) * 100, 1, 2);
-				canvasContext3.fillRect(
-					canvas3.dataset.count,
-					canvas3.height / 2 - (
+				canvasContextPlot1.clearRect(canvasPlot1.dataset.count, 0, 20, canvasPlot1.height);
+				//canvasContextPlot1.fillRect(canvasPlot1.dataset.count, canvasPlot1.height / 2 - (spectrums2.arg[Math.floor(20250 / fsDivN)] ?? 0) * 100, 1, 2);
+				canvasContextPlot1.fillRect(
+					canvasPlot1.dataset.count,
+					canvasPlot1.height / 2 - (
 						(spectrums2.arg[Math.floor(18000 / fsDivN)] ?? 0)
 						-(spectrums2.arg[Math.floor(18750 / fsDivN)] ?? 0)
 					) * 100,
 					1,
 					2
 				);	// 同期信号の位相データと比較
-				canvas3.dataset.count = (canvas3.dataset.count*1 + 1) % canvas3.width;
+				canvasPlot1.dataset.count = (canvasPlot1.dataset.count*1 + 1) % canvasPlot1.width;
 				
 				
 				
 				
 				// 同期信号を表示
-				canvasContext0.clearRect(canvas0.dataset.count, 0, 20, canvas0.height);
-				canvasContext0.globalCompositeOperation = "multiply";	//lighter
-				canvasContext0.fillStyle = "#666";
-				canvasContext0.fillRect(canvas0.dataset.count, canvas0.height/2 - num.sync.value, 1, num.sync.value);
-				if(canvas0.dataset.count == 0){
-					//canvasContext0.lineWidth = 1;
-					canvasContext0.strokeStyle = "#00f";
-					canvasContext0.beginPath();
-					canvasContext0.moveTo(1, canvas0.height/2);
+				canvasContextScope1.clearRect(canvasScope1.dataset.count, 0, 20, canvasScope1.height);
+				canvasContextScope1.globalCompositeOperation = "multiply";	//lighter
+				canvasContextScope1.fillStyle = "#666";
+				canvasContextScope1.fillRect(canvasScope1.dataset.count, canvasScope1.height/2 - num.sync.value, 1, num.sync.value);
+				if(canvasScope1.dataset.count == 0){
+					//canvasContextScope1.lineWidth = 1;
+					canvasContextScope1.strokeStyle = "#00f";
+					canvasContextScope1.beginPath();
+					canvasContextScope1.moveTo(1, canvasScope1.height/2);
 				}
 				else{
-					canvasContext0.lineTo(canvas0.dataset.count, canvas0.height/2 - num.sync.mean);
-					canvasContext0.stroke();
-					canvasContext0.beginPath();
-					canvasContext0.moveTo(canvas0.dataset.count, canvas0.height/2 - num.sync.mean);
+					canvasContextScope1.lineTo(canvasScope1.dataset.count, canvasScope1.height/2 - num.sync.mean);
+					canvasContextScope1.stroke();
+					canvasContextScope1.beginPath();
+					canvasContextScope1.moveTo(canvasScope1.dataset.count, canvasScope1.height/2 - num.sync.mean);
 				}
-				canvas0.dataset.count = (canvas0.dataset.count*1 + 1) % canvas0.width;
+				canvasScope1.dataset.count = (canvasScope1.dataset.count*1 + 1) % canvasScope1.width;
 				
+
+				// データ信号を表示
+				canvasContextScope2.clearRect(canvasScope2.dataset.count, 0, 20, canvasScope2.height);
+				canvasContextScope2.globalCompositeOperation = "multiply";	//lighter
+				canvasContextScope2.fillStyle = "#666";
+				canvasContextScope2.fillRect(canvasScope2.dataset.count, canvasScope2.height/2 - num.data.value, 1, num.data.value);
+				if(canvasScope2.dataset.count == 0){
+					//canvasContextScope2.lineWidth = 1;
+					canvasContextScope2.strokeStyle = "#f00";
+					canvasContextScope2.beginPath();
+					canvasContextScope2.moveTo(1, canvasScope2.height/2);
+				}
+				else{
+					canvasContextScope2.lineTo(canvasScope2.dataset.count, canvasScope2.height/2 - num.data.mean);
+					canvasContextScope2.stroke();
+					canvasContextScope2.beginPath();
+					canvasContextScope2.moveTo(canvasScope2.dataset.count, canvasScope2.height/2 - num.data.mean);
+				}
+				canvasScope2.dataset.count = (canvasScope2.dataset.count*1 + 1) % canvasScope2.width;
 				
 				
 				//document.querySelector("#out_log1").innerText = num.sync.median;
@@ -736,13 +749,13 @@ function receive(){
 		},
 		function(err){
 			// エラー処理
+			alert(err);
 		}
 	);
 }
 
 
 window.addEventListener("load", function(){
-	
 	/*
 	Array(16).fill(0).forEach((e, i) => {
 		let s = encodeHamming((i).toString(2).padStart(4, 0).split(""));
@@ -903,11 +916,11 @@ window.addEventListener("unload", function(){
 		</div>
 		<br />
 		
-		<canvas id="canvas0" width="500" height="200" data-count="0"></canvas>
-		<canvas id="canvas1" width="256" height="256"></canvas>
-		<canvas id="canvas2" width="256" height="256"></canvas>
-		<canvas id="canvas3" width="500" height="200" data-count="0"></canvas>
-		<br />
+		<canvas id="canvasScope1" width="500" height="200" data-count="0"></canvas><br />
+		<canvas id="canvasScope2" width="500" height="200" data-count="0"></canvas><br />
+		<canvas id="canvasSpectrum1" width="256" height="256"></canvas><br />
+		<canvas id="canvasSpectrum2" width="256" height="256"></canvas><br />
+		<canvas id="canvasPlot1" width="500" height="200" data-count="0"></canvas><br />
 	</div>
 </details>
 
