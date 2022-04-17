@@ -290,13 +290,13 @@ function send(source){
 	
 	let oscillators = {
 		sync : [
-			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[18000, -18000]},	// PSK
-			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[19500, 19875]},
-			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[20625, 20250]},
+			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[18000, 18375]},	// FSK
+			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[19125, 18750]},	// FSK
+			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[19500, -19500]},	// PSK
 		],
 		data : [
-			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[18750, -18750]},	// PSK
-			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[21375, 21750]},
+			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[19875, 20250]},	// FSK
+			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[20625, -20625]},	// PSK
 		],
 	};
 	
@@ -385,20 +385,26 @@ function receive(){
 			
 			let canvasScope1 = document.querySelector("#canvasScope1");
 			let canvasScope2 = document.querySelector("#canvasScope2");
+			let canvasPlot1 = document.querySelector("#canvasPlot1");
+			let canvasPlot2 = document.querySelector("#canvasPlot2");
+			let canvasCoord1 = document.querySelector("#canvasCoord1");
+			let canvasCoord2 = document.querySelector("#canvasCoord2");
 			let canvasSpectrum1 = document.querySelector("#canvasSpectrum1");
 			let canvasSpectrum2 = document.querySelector("#canvasSpectrum2");
-			let canvasPlot1 = document.querySelector("#canvasPlot1");
 			let canvasContextScope1 = canvasScope1.getContext('2d');
 			let canvasContextScope2 = canvasScope2.getContext('2d');
+			let canvasContextPlot1 = canvasPlot1.getContext('2d');
+			let canvasContextPlot2 = canvasPlot2.getContext('2d');
+			let canvasContextCoord1 = canvasCoord1.getContext('2d');
+			let canvasContextCoord2 = canvasCoord2.getContext('2d');
 			let canvasContextSpectrum1 = canvasSpectrum1.getContext('2d');
 			let canvasContextSpectrum2 = canvasSpectrum2.getContext('2d');
-			let canvasContextPlot1 = canvasPlot1.getContext('2d');
 			canvasSpectrum1.width = audioAnalyser.frequencyBinCount;	//spectrums.length;
 			canvasSpectrum1.height = 256;
 			canvasSpectrum2.width = audioAnalyser.frequencyBinCount;	//spectrums.length;
 			canvasSpectrum2.height = 256;
 			
-			let createStat = function(length=47, domain=10, normalize=false){
+			let createAmplitudeStat = function(length=47, domain=10, normalize=false){
 				// 移動平均(正規化),中央値,不偏標準偏差を算出
 				this.mean = 0;
 				this.median = 0;
@@ -422,6 +428,14 @@ function receive(){
 					}
 				};
 			};
+			let createPhaseStat = function(length=47, domain=10, normalize=false){
+				return function(re, im, abs, arg){
+					this.re = re;
+					this.im = im;
+					this.abs = abs;
+					this.arg = arg;
+				};
+			};
 			let time = {
 				process : {
 					pre : audioContext.currentTime,
@@ -430,7 +444,7 @@ function receive(){
 						mean : null,
 						median : null,
 						stdev : null,
-						updateStat : createStat(20, 15),
+						updateStat : createAmplitudeStat(20, 15),
 					},
 				},
 				sync : {
@@ -440,7 +454,7 @@ function receive(){
 						mean : null,
 						median : null,
 						stdev : null,
-						updateStat : createStat(20, 15),
+						updateStat : createAmplitudeStat(20, 15),
 					},
 				},
 			};
@@ -450,14 +464,14 @@ function receive(){
 					mean : null,
 					median : null,
 					stdev : null,
-					updateStat : createStat(47, 10, true),
+					updateStat : createAmplitudeStat(47, 10, true),
 				},
 				data : {
 					value : null,
 					mean : null,
 					median : null,
 					stdev : null,
-					updateStat : createStat(47, 10),
+					updateStat : createAmplitudeStat(47, 10),
 					result : null,
 				},
 			};
@@ -491,13 +505,14 @@ function receive(){
 				// spectrumsの周波数(0～24000Hz) = sampleRate:48000 * i:0～1023 / fftSize:2048
 				
 				// 周波数データを表示
+				document.querySelector("#bar1_18000").value = spectrums[Math.floor(18000 / fsDivN)] / 255 * 100;
+				document.querySelector("#bar1_18375").value = spectrums[Math.floor(18375 / fsDivN)] / 255 * 100;
+				document.querySelector("#bar1_18750").value = spectrums[Math.floor(18750 / fsDivN)] / 255 * 100;
+				document.querySelector("#bar1_19125").value = spectrums[Math.floor(19125 / fsDivN)] / 255 * 100;
 				document.querySelector("#bar1_19500").value = spectrums[Math.floor(19500 / fsDivN)] / 255 * 100;
 				document.querySelector("#bar1_19875").value = spectrums[Math.floor(19875 / fsDivN)] / 255 * 100;
 				document.querySelector("#bar1_20250").value = spectrums[Math.floor(20250 / fsDivN)] / 255 * 100;
 				document.querySelector("#bar1_20625").value = spectrums[Math.floor(20625 / fsDivN)] / 255 * 100;
-				document.querySelector("#bar1_21000").value = spectrums[Math.floor(21000 / fsDivN)] / 255 * 100;
-				document.querySelector("#bar1_21375").value = spectrums[Math.floor(21375 / fsDivN)] / 255 * 100;
-				document.querySelector("#bar1_21750").value = spectrums[Math.floor(21750 / fsDivN)] / 255 * 100;
 				canvasContextSpectrum1.clearRect(0, 0, canvasSpectrum1.width, canvasSpectrum1.height);
 				for(let i=0,len=spectrums.length; i<len; i++){
 					if(i * audioContext.sampleRate % audioAnalyser.fftSize == 0){	//i*fsDivN
@@ -513,14 +528,15 @@ function receive(){
 				}
 				
 				// 周波数データを表示
-				let spectrums2 = DFT(windowfunc(timeDomain), [Math.floor(18000 / fsDivN), Math.floor(22000 / fsDivN)]);	//
+				let spectrums2 = DFT(windowfunc(timeDomain), [Math.floor(18000 / fsDivN), Math.floor(21000 / fsDivN)]);	//
+				document.querySelector("#bar2_18000").value = (spectrums2.abs[Math.floor(18000 / fsDivN)] ?? 1) / 255 * 100;
+				document.querySelector("#bar2_18375").value = (spectrums2.abs[Math.floor(18375 / fsDivN)] ?? 1) / 255 * 100;
+				document.querySelector("#bar2_18750").value = (spectrums2.abs[Math.floor(18750 / fsDivN)] ?? 1) / 255 * 100;
+				document.querySelector("#bar2_19125").value = (spectrums2.abs[Math.floor(19125 / fsDivN)] ?? 1) / 255 * 100;
 				document.querySelector("#bar2_19500").value = (spectrums2.abs[Math.floor(19500 / fsDivN)] ?? 1) / 255 * 100;
 				document.querySelector("#bar2_19875").value = (spectrums2.abs[Math.floor(19875 / fsDivN)] ?? 1) / 255 * 100;
 				document.querySelector("#bar2_20250").value = (spectrums2.abs[Math.floor(20250 / fsDivN)] ?? 1) / 255 * 100;
 				document.querySelector("#bar2_20625").value = (spectrums2.abs[Math.floor(20625 / fsDivN)] ?? 1) / 255 * 100;
-				document.querySelector("#bar2_21000").value = (spectrums2.abs[Math.floor(21000 / fsDivN)] ?? 1) / 255 * 100;
-				document.querySelector("#bar2_21375").value = (spectrums2.abs[Math.floor(21375 / fsDivN)] ?? 1) / 255 * 100;
-				document.querySelector("#bar2_21750").value = (spectrums2.abs[Math.floor(21750 / fsDivN)] ?? 1) / 255 * 100;
 				canvasContextSpectrum2.clearRect(0, 0, canvasSpectrum2.width, canvasSpectrum2.height);
 				for(let i=0,len=spectrums2.abs.length/2; i<len; i++){
 					if(i * audioContext.sampleRate % audioAnalyser.fftSize == 0){	//i*fsDivN
@@ -538,15 +554,15 @@ function receive(){
 				
 				
 				num.sync.value = 0;
-				num.sync.value -= spectrums[Math.floor(19500/fsDivN)];
-				num.sync.value += spectrums[Math.floor(19875/fsDivN)];
-				num.sync.value -= spectrums[Math.floor(20625/fsDivN)];
-				num.sync.value += spectrums[Math.floor(20250/fsDivN)];
+				num.sync.value -= spectrums[Math.floor(18000/fsDivN)];
+				num.sync.value += spectrums[Math.floor(18375/fsDivN)];
+				num.sync.value -= spectrums[Math.floor(19125/fsDivN)];
+				num.sync.value += spectrums[Math.floor(18750/fsDivN)];
 				num.sync.updateStat();
 				
 				num.data.value = 0;
-				num.data.value -= spectrums[Math.floor(21375/fsDivN)];
-				num.data.value += spectrums[Math.floor(21750/fsDivN)];
+				num.data.value -= spectrums[Math.floor(19875/fsDivN)];
+				num.data.value += spectrums[Math.floor(20250/fsDivN)];
 				num.data.updateStat();
 				num.data.result = (num.data.mean > 0) * 1;
 				
@@ -681,20 +697,6 @@ function receive(){
 				
 				
 				
-				// 位相データを表示
-				canvasContextPlot1.clearRect(canvasPlot1.dataset.count, 0, 20, canvasPlot1.height);
-				//canvasContextPlot1.fillRect(canvasPlot1.dataset.count, canvasPlot1.height / 2 - (spectrums2.arg[Math.floor(20250 / fsDivN)] ?? 0) * 100, 1, 2);
-				canvasContextPlot1.fillRect(
-					canvasPlot1.dataset.count,
-					canvasPlot1.height / 2 - (
-						(spectrums2.arg[Math.floor(18000 / fsDivN)] ?? 0)
-						-(spectrums2.arg[Math.floor(18750 / fsDivN)] ?? 0)
-					) * 100,
-					1,
-					2
-				);	// 同期信号の位相データと比較
-				canvasPlot1.dataset.count = (canvasPlot1.dataset.count*1 + 1) % canvasPlot1.width;
-				
 				
 				
 				
@@ -717,7 +719,7 @@ function receive(){
 				}
 				canvasScope1.dataset.count = (canvasScope1.dataset.count*1 + 1) % canvasScope1.width;
 				
-
+				
 				// データ信号を表示
 				canvasContextScope2.clearRect(canvasScope2.dataset.count, 0, 20, canvasScope2.height);
 				canvasContextScope2.globalCompositeOperation = "multiply";	//lighter
@@ -738,6 +740,59 @@ function receive(){
 				canvasScope2.dataset.count = (canvasScope2.dataset.count*1 + 1) % canvasScope2.width;
 				
 				
+				
+				
+				// 位相変調の同期信号を表示
+				canvasContextPlot1.clearRect(canvasPlot1.dataset.count, 0, 20, canvasPlot1.height);
+				canvasContextPlot1.fillStyle = "#00f";
+				canvasContextPlot1.fillRect(canvasPlot1.dataset.count, canvasPlot1.height / 2 - (spectrums2.arg[Math.floor(19500 / fsDivN)] ?? 0) * 100, 1, 2);
+				canvasPlot1.dataset.count = (canvasPlot1.dataset.count*1 + 1) % canvasPlot1.width;
+				
+				// 位相変調のデータ信号を表示
+				canvasContextPlot2.clearRect(canvasPlot2.dataset.count, 0, 20, canvasPlot2.height);
+				canvasContextPlot2.fillStyle = "#f00";
+				canvasContextPlot2.fillRect(canvasPlot2.dataset.count, canvasPlot2.height / 2 - (spectrums2.arg[Math.floor(20625 / fsDivN)] ?? 0) * 100, 1, 2);
+				canvasContextPlot2.fillStyle = "#956daf";
+				canvasContextPlot2.fillRect(
+					canvasPlot2.dataset.count,
+					canvasPlot2.height / 2 - (
+						(spectrums2.arg[Math.floor(19500 / fsDivN)] ?? 0)
+						-(spectrums2.arg[Math.floor(20625 / fsDivN)] ?? 0)
+					) * 100,
+					1,
+					2
+				);	// 同期信号の位相データと比較
+				canvasPlot2.dataset.count = (canvasPlot2.dataset.count*1 + 1) % canvasPlot2.width;
+				
+				
+				
+				// 位相変調の同期信号を信号空間ダイヤグラム(Constellation diagram)に表示
+				canvasContextCoord1.clearRect(0, 0, canvasCoord1.width, canvasCoord1.height);
+				canvasContextCoord1.fillStyle = "#ddd";
+				canvasContextCoord1.fillRect(0, canvasCoord1.height / 2, canvasCoord1.width, 1);	// x軸(実軸)
+				canvasContextCoord1.fillRect(canvasCoord1.width / 2, 0, 1, canvasCoord1.height);	// y軸(虚軸)
+				canvasContextCoord1.fillStyle = "#000";
+				canvasContextCoord1.fillRect(
+					canvasCoord1.width / 2 - (spectrums2.re[Math.floor(19500 / fsDivN)] ?? 0),
+					canvasCoord1.height / 2 - (spectrums2.im[Math.floor(19500 / fsDivN)] ?? 0),
+					2,
+					2
+				);
+				
+				// 位相変調のデータ信号を信号空間ダイヤグラム(Constellation diagram)に表示
+				canvasContextCoord2.clearRect(0, 0, canvasCoord2.width, canvasCoord2.height);
+				canvasContextCoord2.fillStyle = "#ddd";
+				canvasContextCoord2.fillRect(0, canvasCoord2.height / 2, canvasCoord2.width, 1);	// x軸(実軸)
+				canvasContextCoord2.fillRect(canvasCoord2.width / 2, 0, 1, canvasCoord2.height);	// y軸(虚軸)
+				canvasContextCoord2.fillStyle = "#000";
+				canvasContextCoord2.fillRect(
+					canvasCoord2.width / 2 - (spectrums2.re[Math.floor(20625 / fsDivN)] ?? 0),
+					canvasCoord2.height / 2 - (spectrums2.im[Math.floor(20625 / fsDivN)] ?? 0),
+					2,
+					2
+				);
+
+
 				//document.querySelector("#out_log1").innerText = num.sync.median;
 				//document.querySelector("#out_log1").innerText += (audioContext.currentTime - t) + "<br />";
 			};
@@ -875,40 +930,36 @@ window.addEventListener("unload", function(){
 		<br />
 		
 		<div style="display:inline-block; font-family:monospace;">
-			<!--
 			18000 <meter max="100" value="0" id="bar1_18000"></meter><br />
 			18375 <meter max="100" value="0" id="bar1_18375"></meter><br />
 			18750 <meter max="100" value="0" id="bar1_18750"></meter><br />
 			19125 <meter max="100" value="0" id="bar1_19125"></meter><br />
-			-->
 			19500 <meter max="100" value="0" id="bar1_19500"></meter><br />
 			19875 <meter max="100" value="0" id="bar1_19875"></meter><br />
 			20250 <meter max="100" value="0" id="bar1_20250"></meter><br />
 			20625 <meter max="100" value="0" id="bar1_20625"></meter><br />
+			<!--
 			21000 <meter max="100" value="0" id="bar1_21000"></meter><br />
 			21375 <meter max="100" value="0" id="bar1_21375"></meter><br />
 			21750 <meter max="100" value="0" id="bar1_21750"></meter><br />
-			<!--
 			22125 <meter max="100" value="0" id="bar1_22125"></meter><br />
 			22500 <meter max="100" value="0" id="bar1_22500"></meter><br />
 			22875 <meter max="100" value="0" id="bar1_22875"></meter><br />
 			-->
 		</div>
 		<div style="display:inline-block; font-family:monospace;">
-			<!--
 			18000 <meter max="100" value="0" id="bar2_18000"></meter><br />
 			18375 <meter max="100" value="0" id="bar2_18375"></meter><br />
 			18750 <meter max="100" value="0" id="bar2_18750"></meter><br />
 			19125 <meter max="100" value="0" id="bar2_19125"></meter><br />
-			-->
 			19500 <meter max="100" value="0" id="bar2_19500"></meter><br />
 			19875 <meter max="100" value="0" id="bar2_19875"></meter><br />
 			20250 <meter max="100" value="0" id="bar2_20250"></meter><br />
 			20625 <meter max="100" value="0" id="bar2_20625"></meter><br />
+			<!--
 			21000 <meter max="100" value="0" id="bar2_21000"></meter><br />
 			21375 <meter max="100" value="0" id="bar2_21375"></meter><br />
 			21750 <meter max="100" value="0" id="bar2_21750"></meter><br />
-			<!--
 			22125 <meter max="100" value="0" id="bar2_22125"></meter><br />
 			22500 <meter max="100" value="0" id="bar2_22500"></meter><br />
 			22875 <meter max="100" value="0" id="bar2_22875"></meter><br />
@@ -918,9 +969,12 @@ window.addEventListener("unload", function(){
 		
 		<canvas id="canvasScope1" width="500" height="200" data-count="0"></canvas><br />
 		<canvas id="canvasScope2" width="500" height="200" data-count="0"></canvas><br />
+		<canvas id="canvasPlot1" width="500" height="200" data-count="0"></canvas>
+		<canvas id="canvasCoord1" width="200" height="200"></canvas><br />
+		<canvas id="canvasPlot2" width="500" height="200" data-count="0"></canvas>
+		<canvas id="canvasCoord2" width="200" height="200"></canvas><br />
 		<canvas id="canvasSpectrum1" width="256" height="256"></canvas><br />
 		<canvas id="canvasSpectrum2" width="256" height="256"></canvas><br />
-		<canvas id="canvasPlot1" width="500" height="200" data-count="0"></canvas><br />
 	</div>
 </details>
 
