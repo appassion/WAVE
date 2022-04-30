@@ -7,7 +7,7 @@
 <meta http-equiv="Content-Style-Type" content="text/css" />
 <meta http-equiv="Content-Script-Type" content="text/javascript" />
 
-<title>index</title>
+<title>WAVE</title>
 
 <meta name="viewport" content="width=device-width" />
 
@@ -54,6 +54,12 @@ main {
 }
 
 
+#in_progressive {
+	font-family: monospace;
+}
+#out_log0 {
+	font-family: monospace;
+}
 #out_log1 {
 	height: 4em;
 	overflow-y: scroll;
@@ -115,7 +121,7 @@ function decodeExHamming(input){
 	if(!Array.isArray(input)){
 		input = input.split("");
 	}
-	if(input.length%8 != 0){
+	if(input.length%8 !== 0){
 		return output.join("");
 	}
 	for(let i=0,len=input.length; i<len; i+=8){
@@ -154,7 +160,7 @@ function encode(text, base=10){
 		.match(/%[0-9A-F]{2}|[^%]/g)
 		.map(e => (e.substr(0,1)=="%" ? parseInt(e.slice(1),16) : e.charCodeAt(0)));	// 10進数値配列
 	
-	if(base != 10){
+	if(base !== 10){
 		//result = result.map(e => ("0".repeat(logN(2**8,base))+e.toString(base)).slice(-logN(2**8,base)));	// n進文字列配列
 		result = result.map(e => e.toString(base).padStart(logN(2**8, base), 0));	// n進文字列配列
 	}
@@ -199,10 +205,18 @@ function createFIR(length=20, averageSize=7){
 	}
 }
 
+function LPFilter(data){
+	let result = Array(data.length);
+	for(let i=0,len=data.length; i<len; i++){
+		result[i] = (data[Math.max(i-1,0)] + data[i] + data[Math.min(i+1,len-1)]) / 3;
+	}
+	return result;
+}
+
 
 
 function windowfunc(data){
-	if(!windowfunc.weights){
+	if(!windowfunc.weights){	// メモ化
 		windowfunc.weights = Array(length);
 		for(let i=0,len=data.length; i<len; i++){
 			windowfunc.weights[i] = 0.5-0.5*Math.cos(2*i*Math.PI/len);
@@ -216,21 +230,13 @@ function windowfunc(data){
 	return result;
 }
 
-function LPFilter(data){
-	let result = Array(data.length);
-	for(let i=0,len=data.length; i<len; i++){
-		result[i] = (data[Math.max(i-1,0)] + data[i] + data[Math.min(i+1,len-1)]) / 3;
-	}
-	return result;
-}
-
 function DFT(data, frec=[]){	// frecに設定された添字番号が2つなら範囲指定、3つ以上なら該当番号のみ返す
 	// first-last, begin-end, start-stop/finish
 	let length = data.length;
 	let start = frec.length>0 ? frec[0] : 0;
 	let end = frec.length>0 ? frec[frec.length-1] : length/2;
 	
-	if(!DFT.weights){
+	if(!DFT.weights){	// メモ化
 		DFT.weights = {};
 		DFT.weights.re = Array(length);
 		DFT.weights.im = Array(length);
@@ -253,7 +259,7 @@ function DFT(data, frec=[]){	// frecに設定された添字番号が2つなら�
 	if(frec.length <= 2)
 		frec = Array(end - start + 1).fill(start).map((x, y) => x + y);	// range(start,end+1)
 	
-	frec.forEach(function(i){	//for(let i=start; i<end; i++)
+	frec.forEach(i => {	//for(let i=start; i<end; i++)
 		spectrums.re[i] = 0;
 		spectrums.im[i] = 0;
 		for(let j=0; j<length; j++){
@@ -316,8 +322,7 @@ function send(source){
 			e.gain.gain.setValueAtTime(0.0, t + time*0.0);
 			e.gain.gain.setValueAtTime(0.0, t + time*0.1);
 			e.gain.gain.setValueAtTime(1.0, t + time*0.2);
-			e.gain.gain.setValueAtTime(1.0, t + time*0.8);
-			e.gain.gain.setValueAtTime(0.0, t + time*0.9);
+			e.gain.gain.setValueAtTime(1.0, t + time*0.9);
 			e.gain.gain.setValueAtTime(0.0, t + time*1.0);
 		});
 		oscillators.data.forEach(e => {
@@ -325,13 +330,15 @@ function send(source){
 			e.gain.gain.setValueAtTime(0.0, t + time*0.0);
 			e.gain.gain.setValueAtTime(0.0, t + time*0.1);
 			e.gain.gain.setValueAtTime(1.0, t + time*0.2);
-			e.gain.gain.setValueAtTime(1.0, t + time*0.8);
-			e.gain.gain.setValueAtTime(0.0, t + time*0.9);
+			e.gain.gain.setValueAtTime(1.0, t + time*0.9);
 			e.gain.gain.setValueAtTime(0.0, t + time*1.0);
 		});
 		t += time;
 		
-		document.querySelector("#in_progressive").innerHTML += "<span>" + bit + "</span>" + ((i+1)%4 ? "" : " ");
+		document.querySelector("#in_progressive").innerHTML += "<span>" + bit + "</span>";
+		document.querySelector("#in_progressive").innerHTML += ((i+1)%4 ? "" : " ");
+		document.querySelector("#in_progressive").innerHTML += (i+1 === preamble.length ? "<br />" : "");
+		
 		setTimeout((i => {
 			return () => {
 				document.querySelectorAll("#in_progressive span")[Math.max(i-1, 0)].style.backgroundColor = "#ccc";
@@ -362,6 +369,28 @@ function send(source){
 
 
 function receive(){
+	let freq = {
+		sync : {
+			fsk : [
+				[18000, 18375],
+				[19125, 18750],
+			],
+			psk : [
+				[19500, -19500],
+			],
+		},
+		data : {
+			fsk : [
+				[19875, 20250],
+			],
+			psk : [
+				[20625, -20625],
+			],
+		},
+		min : 18000,
+		max : 21000,
+	};
+	
 	navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;	//navigator.mediaDevices.getUserMediaに置き換えられた
 	
 	// 端末のビデオ、音声ストリームを取得
@@ -471,20 +500,38 @@ function receive(){
 					mean : null,
 					median : null,
 					stdev : null,
-					updateStat : createAmplitudeStat(47, 10),
-					result : null,
+					updateStat : createAmplitudeStat(47, 7),
+					bit : null,
 				},
 			};
-
+			let buffer = {
+				byte : {
+					raw : "",
+					decode : {
+						data : "",
+						ecc : "",
+					},
+				},
+				field : {
+					raw : "",
+					decode : {
+						data : "",
+						//ecc : "",
+					},
+				},
+				all : {
+					raw : "",
+					decode : {
+						data : "",
+						//ecc : "",
+					},
+				},
+			};
+			let fields = {};
 			let state = 0;	// 0:未受信, 1:同期信号受信開始, 2:同期信号受信完了(ビットレベルの同期), 3:同期ワード受信完了(バイトレベルの同期), 4:ヘッダ受信開始, 5:ヘッダ受信完了, 6:データ受信開始, 7:データ受信終了
 			let syncSign = -1;	// 上昇or下降
-			let fields = {};
 			let binId = "";
 			let binSize = 0;
-			//let binRawByte = "";
-			let binDecodeByte = "";
-			let binRawData = "";
-			let binDecodeData = "";
 			
 			scriptProcessor.onaudioprocess = function(e){
 				// 時間を計測
@@ -504,67 +551,30 @@ function receive(){
 				// getFloatFrequencyData(Float32Array array) については、信号を FFT にかけた後のマグニチュードをポイント数で割って正規化し、対数を取って dB 化した値が返されるようで、通常の音楽信号なら大体 -30 ～ -60 あたりの値が出力されます。単位は dBFS/Hz のようなもの
 				// spectrumsの周波数(0～24000Hz) = sampleRate:48000 * i:0～1023 / fftSize:2048
 				
-				// 周波数データを表示
-				document.querySelector("#bar1_18000").value = spectrums[Math.floor(18000 / fsDivN)] / 255 * 100;
-				document.querySelector("#bar1_18375").value = spectrums[Math.floor(18375 / fsDivN)] / 255 * 100;
-				document.querySelector("#bar1_18750").value = spectrums[Math.floor(18750 / fsDivN)] / 255 * 100;
-				document.querySelector("#bar1_19125").value = spectrums[Math.floor(19125 / fsDivN)] / 255 * 100;
-				document.querySelector("#bar1_19500").value = spectrums[Math.floor(19500 / fsDivN)] / 255 * 100;
-				document.querySelector("#bar1_19875").value = spectrums[Math.floor(19875 / fsDivN)] / 255 * 100;
-				document.querySelector("#bar1_20250").value = spectrums[Math.floor(20250 / fsDivN)] / 255 * 100;
-				document.querySelector("#bar1_20625").value = spectrums[Math.floor(20625 / fsDivN)] / 255 * 100;
-				canvasContextSpectrum1.clearRect(0, 0, canvasSpectrum1.width, canvasSpectrum1.height);
-				for(let i=0,len=spectrums.length; i<len; i++){
-					if(i * audioContext.sampleRate % audioAnalyser.fftSize == 0){	//i*fsDivN
-						// 添字に対して周波数が割り切れる部分に目盛りを描画
-						canvasContextSpectrum1.fillStyle = "#ddd";
-						canvasContextSpectrum1.fillRect(i, 40, 1, canvasSpectrum1.height);
-						canvasContextSpectrum1.fillStyle = "#999";
-						canvasContextSpectrum1.textAlign = "center";
-						canvasContextSpectrum1.fillText(i*fsDivN, i, 10+10*(i/16%4));
-					}
-					canvasContextSpectrum1.fillStyle = "#000";
-					canvasContextSpectrum1.fillRect(i, canvasSpectrum1.height-spectrums[i], 1, canvasSpectrum1.height);
-				}
-				
-				// 周波数データを表示
-				let spectrums2 = DFT(windowfunc(timeDomain), [Math.floor(18000 / fsDivN), Math.floor(21000 / fsDivN)]);	//
-				document.querySelector("#bar2_18000").value = (spectrums2.abs[Math.floor(18000 / fsDivN)] ?? 1) / 255 * 100;
-				document.querySelector("#bar2_18375").value = (spectrums2.abs[Math.floor(18375 / fsDivN)] ?? 1) / 255 * 100;
-				document.querySelector("#bar2_18750").value = (spectrums2.abs[Math.floor(18750 / fsDivN)] ?? 1) / 255 * 100;
-				document.querySelector("#bar2_19125").value = (spectrums2.abs[Math.floor(19125 / fsDivN)] ?? 1) / 255 * 100;
-				document.querySelector("#bar2_19500").value = (spectrums2.abs[Math.floor(19500 / fsDivN)] ?? 1) / 255 * 100;
-				document.querySelector("#bar2_19875").value = (spectrums2.abs[Math.floor(19875 / fsDivN)] ?? 1) / 255 * 100;
-				document.querySelector("#bar2_20250").value = (spectrums2.abs[Math.floor(20250 / fsDivN)] ?? 1) / 255 * 100;
-				document.querySelector("#bar2_20625").value = (spectrums2.abs[Math.floor(20625 / fsDivN)] ?? 1) / 255 * 100;
-				canvasContextSpectrum2.clearRect(0, 0, canvasSpectrum2.width, canvasSpectrum2.height);
-				for(let i=0,len=spectrums2.abs.length/2; i<len; i++){
-					if(i * audioContext.sampleRate % audioAnalyser.fftSize == 0){	//i*fsDivN
-						// 添字に対して周波数が割り切れる部分に目盛りを描画
-						canvasContextSpectrum2.fillStyle = "#ddd";
-						canvasContextSpectrum2.fillRect(i, 40, 1, canvasSpectrum2.height);
-						canvasContextSpectrum2.textAlign = "center";
-						canvasContextSpectrum2.fillStyle = "#999";
-						canvasContextSpectrum2.fillText(i*fsDivN, i, 10+10*(i/16%4));
-					}
-					canvasContextSpectrum2.fillStyle = "hsl(" + (spectrums2.arg[i] ?? 0) * 360 + ", 100%, " + (spectrums2.abs[i] >= 5 ? 40 : 0) + "%)";
-					canvasContextSpectrum2.fillRect(i, canvasSpectrum2.height - (spectrums2.abs[i] ?? 1), 1, canvasSpectrum2.height);
-				}
+				// 位相データ解析用
+				let spectrums2 = DFT(windowfunc(timeDomain), [Math.floor(freq.min / fsDivN), Math.floor(freq.max / fsDivN)]);
 				
 				
 				
-				num.sync.value = 0;
-				num.sync.value -= spectrums[Math.floor(18000/fsDivN)];
-				num.sync.value += spectrums[Math.floor(18375/fsDivN)];
-				num.sync.value -= spectrums[Math.floor(19125/fsDivN)];
-				num.sync.value += spectrums[Math.floor(18750/fsDivN)];
+				
+				//num.sync.value = 0;
+				//num.sync.value -= spectrums[Math.floor(18000/fsDivN)];
+				//num.sync.value += spectrums[Math.floor(18375/fsDivN)];
+				//num.sync.value -= spectrums[Math.floor(19125/fsDivN)];
+				//num.sync.value += spectrums[Math.floor(18750/fsDivN)];
+				num.sync.value = freq.sync.fsk.reduce((sum, f) => (
+					sum - spectrums[Math.floor(f[0]/fsDivN)] + spectrums[Math.floor(f[1]/fsDivN)]
+				), 0);
 				num.sync.updateStat();
 				
-				num.data.value = 0;
-				num.data.value -= spectrums[Math.floor(19875/fsDivN)];
-				num.data.value += spectrums[Math.floor(20250/fsDivN)];
+				//num.data.value = 0;
+				//num.data.value -= spectrums[Math.floor(19875/fsDivN)];
+				//num.data.value += spectrums[Math.floor(20250/fsDivN)];
+				num.data.value = freq.data.fsk.reduce((sum, f) => (
+					sum - spectrums[Math.floor(f[0]/fsDivN)] + spectrums[Math.floor(f[1]/fsDivN)]
+				), 0);
 				num.data.updateStat();
-				num.data.result = (num.data.mean > 0) * 1;
+				num.data.bit = (num.data.mean > 0) * 1;
 				
 				document.querySelector("#sync_value").innerText = num.sync.value;
 				document.querySelector("#sync_mean").innerText = num.sync.mean;
@@ -595,42 +605,52 @@ function receive(){
 							state++;
 						
 						if(time.sync.delta.stdev < 0.1){	// 同期信号の切り替え間隔の標準偏差が0.1未満の場合、同期信号取得成功
-							binRawData += num.data.result;
-							document.querySelector("#dataResult").innerText = num.data.result;
+							buffer.byte.raw += num.data.bit;
+							buffer.field.raw += num.data.bit;
+							buffer.all.raw += num.data.bit;
+							document.querySelector("#dataResult").innerText = num.data.bit;
 							
 							if(state === 6)
-								document.querySelector("#out_binary").innerText += num.data.result;
+								document.querySelector("#out_binary").innerText += num.data.bit;
 							
 							if(state === 1){
 								// ビットレベル同期完了
 								state++;
 							}
 							else if(state === 2){
-								if(decodeExHamming(binRawData.slice(-8)) == "0110"){	// 0110 decode> 01101100:'l'
+								if(decodeExHamming(buffer.byte.raw.slice(-8)) === "0110"){	// 0110 decode> 01101100:'l'
 									// バイトレベル同期完了(開始フレーム識別子(SFD)受信)
 									state = 3;
-									binRawData = "";
+									buffer.byte.raw = "";
+									buffer.field.raw = "";
 								}
 							}
 							else if(state >= 3 && state <= 6){
-								document.querySelector("#out_log0").textContent += num.data.result + (binRawData.length%4 ? "":" ");
+								//document.querySelector("#out_log0").textContent += num.data.bit + (buffer.byte.raw.length%4 ? "":" ");
+								document.querySelector("#out_log0").innerHTML += "<span>" + num.data.bit + "</span>" + (buffer.byte.raw.length%4 ? "":" ");
+								
+								if(buffer.byte.raw.length >= 8){	//buffer.all.raw.length%8===0	// 8ビット単位で処理
+									buffer.byte.decode.data = decodeExHamming(buffer.byte.raw);
+									buffer.byte.decode.ecc = encodeExHamming(buffer.byte.decode.data).slice(-4);
+									buffer.field.decode.data += buffer.byte.decode.data;
 
-								if(binRawData.length % 8 === 0){	// 8ビット単位で処理
-									binDecodeByte = decodeExHamming(binRawData.slice(-8));
-									binDecodeData += binDecodeByte;
+									buffer.byte.raw.split("").forEach((e, i) => {
+										if((buffer.byte.decode.data + buffer.byte.decode.ecc).charAt(i) !== e)
+											document.querySelector("#out_log0 span:nth-last-child("+(8-i)+")").style.backgroundColor = "#ff0";
+									});
 
 									document.querySelector("#out_log1").innerHTML += (state%2 ? "head":"body");
-									document.querySelector("#out_log1").innerHTML += "&nbsp;-&nbsp;raw:" + binRawData.slice(-8);
-									document.querySelector("#out_log1").innerHTML += ",&nbsp;decode:" + encodeExHamming(binDecodeByte);
+									document.querySelector("#out_log1").innerHTML += "&nbsp;-&nbsp;raw:" + buffer.byte.raw;
+									document.querySelector("#out_log1").innerHTML += ",&nbsp;decode:" + buffer.byte.decode.data + buffer.byte.decode.ecc;
 									
 									if(state === 3 || state === 5){
-										binId = binDecodeByte;
-										binSize = parseInt(encodeExHamming(binDecodeByte).slice(-4), 2) - 1;
-										//document.querySelector("#out_log1").innerHTML += ",&nbsp;decode:" + encodeExHamming(binDecodeByte);
+										binId = buffer.byte.decode.data;
+										binSize = parseInt(buffer.byte.decode.ecc, 2) - 1;
 										switch(binId){
 											case "0110":	// 0110 decode> 01101100:'l'
 												state = 3;
 												binSize = 0;
+												document.querySelector("#out_log0").innerHTML += "<br />";
 												break;
 											case "0111":	// 0111 decode> 01110010:'r'
 												state = 4;
@@ -649,29 +669,30 @@ function receive(){
 												document.querySelector("#out_log1").innerHTML += "&nbsp;error!";
 												break;
 										}
-										document.querySelector("#field_name").innerText = encodeExHamming(binDecodeByte);	//binRawData.slice(-8)
+										document.querySelector("#field_name").innerText = buffer.byte.decode.data + buffer.byte.decode.ecc;
 										document.querySelector("#field_size").innerText = binSize;
-										binRawData = "";
-										binDecodeData = "";
+										buffer.field.raw = "";
+										buffer.field.decode.data = "";
+										buffer.field.decode.ecc = "";
 									}
 									else if(state === 4 || state === 6){
 										
-										if(state === 6){		// ペイロード受信中
-											document.querySelector("#out_hex").innerText += parseInt(binDecodeByte, 2).toString(16);
+										if(state === 6 && buffer.byte.decode.data.length > 0){		// ペイロード受信中
+											document.querySelector("#out_hex").innerText += parseInt(buffer.byte.decode.data, 2).toString(16);
 											
-											if(decode(binDecodeData, 2) != "")
-												document.querySelector("#out_text").value = decode(binDecodeData, 2);
+											if(decode(buffer.field.decode.data, 2) !== "")
+												document.querySelector("#out_text").value = decode(buffer.field.decode.data, 2);
 											else
-												document.querySelector("#out_text").value += decode(binDecodeByte, 2);
+												document.querySelector("#out_text").value += decode(buffer.byte.decode.data, 2);
 										}
 										
 										binSize--;
 										document.querySelector("#field_size").innerText = binSize;
-										if(binSize === 0){	// フィールド受信終了
-											fields[binId] = binDecodeData;
-											//document.querySelector("#out_log1").innerHTML += " ┗ " + binRawData + "<br />";
-											binRawData = "";
-											binDecodeData = "";
+										if(binSize <= 0){	// フィールド受信終了
+											fields[binId] = buffer.field.decode.data;
+											buffer.field.raw = "";
+											buffer.field.decode.data = "";
+											buffer.field.decode.ecc = "";
 											state++;
 										}
 									}
@@ -679,6 +700,9 @@ function receive(){
 									document.querySelector("#out_log1").innerHTML += "<br />";
 									document.querySelector("#out_log1").scrollTo(0, document.querySelector("#out_log1").scrollHeight);
 									//document.querySelector("#out_log1").scrollIntoView(false);
+									buffer.byte.raw = "";
+									buffer.byte.decode.data = "";
+									buffer.byte.decode.ecc = "";
 								}
 							}
 							
@@ -700,6 +724,55 @@ function receive(){
 				
 				
 				
+				
+				// 周波数データを表示
+				document.querySelector("#bar1_18000").value = spectrums[Math.floor(18000 / fsDivN)] / 255 * 100;
+				document.querySelector("#bar1_18375").value = spectrums[Math.floor(18375 / fsDivN)] / 255 * 100;
+				document.querySelector("#bar1_18750").value = spectrums[Math.floor(18750 / fsDivN)] / 255 * 100;
+				document.querySelector("#bar1_19125").value = spectrums[Math.floor(19125 / fsDivN)] / 255 * 100;
+				document.querySelector("#bar1_19500").value = spectrums[Math.floor(19500 / fsDivN)] / 255 * 100;
+				document.querySelector("#bar1_19875").value = spectrums[Math.floor(19875 / fsDivN)] / 255 * 100;
+				document.querySelector("#bar1_20250").value = spectrums[Math.floor(20250 / fsDivN)] / 255 * 100;
+				document.querySelector("#bar1_20625").value = spectrums[Math.floor(20625 / fsDivN)] / 255 * 100;
+				canvasContextSpectrum1.clearRect(0, 0, canvasSpectrum1.width, canvasSpectrum1.height);
+				for(let i=0; i<spectrums.length; i++){
+					if(i * audioContext.sampleRate % audioAnalyser.fftSize == 0){	//i*fsDivN
+						// 添字に対して周波数が割り切れる部分に目盛りを描画
+						canvasContextSpectrum1.fillStyle = "#ddd";
+						canvasContextSpectrum1.fillRect(i, 40, 1, canvasSpectrum1.height);
+						canvasContextSpectrum1.fillStyle = "#999";
+						canvasContextSpectrum1.textAlign = "center";
+						canvasContextSpectrum1.fillText(i*fsDivN, i, 10+10*(i/16%4));
+					}
+					canvasContextSpectrum1.fillStyle = "#000";
+					canvasContextSpectrum1.fillRect(i, canvasSpectrum1.height-spectrums[i], 1, canvasSpectrum1.height);
+				}
+				
+				// 周波数データ+位相データを表示
+				document.querySelector("#bar2_18000").value = (spectrums2.abs[Math.floor(18000 / fsDivN)] ?? 1) / 255 * 100;
+				document.querySelector("#bar2_18375").value = (spectrums2.abs[Math.floor(18375 / fsDivN)] ?? 1) / 255 * 100;
+				document.querySelector("#bar2_18750").value = (spectrums2.abs[Math.floor(18750 / fsDivN)] ?? 1) / 255 * 100;
+				document.querySelector("#bar2_19125").value = (spectrums2.abs[Math.floor(19125 / fsDivN)] ?? 1) / 255 * 100;
+				document.querySelector("#bar2_19500").value = (spectrums2.abs[Math.floor(19500 / fsDivN)] ?? 1) / 255 * 100;
+				document.querySelector("#bar2_19875").value = (spectrums2.abs[Math.floor(19875 / fsDivN)] ?? 1) / 255 * 100;
+				document.querySelector("#bar2_20250").value = (spectrums2.abs[Math.floor(20250 / fsDivN)] ?? 1) / 255 * 100;
+				document.querySelector("#bar2_20625").value = (spectrums2.abs[Math.floor(20625 / fsDivN)] ?? 1) / 255 * 100;
+				canvasContextSpectrum2.clearRect(0, 0, canvasSpectrum2.width, canvasSpectrum2.height);
+				for(let i=0; i<spectrums2.abs.length/2; i++){
+					if(i * audioContext.sampleRate % audioAnalyser.fftSize == 0){	//i*fsDivN
+						// 添字に対して周波数が割り切れる部分に目盛りを描画
+						canvasContextSpectrum2.fillStyle = "#ddd";
+						canvasContextSpectrum2.fillRect(i, 40, 1, canvasSpectrum2.height);
+						canvasContextSpectrum2.textAlign = "center";
+						canvasContextSpectrum2.fillStyle = "#999";
+						canvasContextSpectrum2.fillText(i*fsDivN, i, 10+10*(i/16%4));
+					}
+					canvasContextSpectrum2.fillStyle = "hsl(" + (spectrums2.arg[i] ?? 0) * 360 + ", 100%, " + (spectrums2.abs[i] >= 5 ? 40 : 0) + "%)";
+					canvasContextSpectrum2.fillRect(i, canvasSpectrum2.height - (spectrums2.abs[i] ?? 1), 1, canvasSpectrum2.height);
+				}
+				
+				
+				
 				// 同期信号を表示
 				canvasContextScope1.clearRect(canvasScope1.dataset.count, 0, 20, canvasScope1.height);
 				canvasContextScope1.globalCompositeOperation = "multiply";	//lighter
@@ -718,7 +791,6 @@ function receive(){
 					canvasContextScope1.moveTo(canvasScope1.dataset.count, canvasScope1.height/2 - num.sync.mean);
 				}
 				canvasScope1.dataset.count = (canvasScope1.dataset.count*1 + 1) % canvasScope1.width;
-				
 				
 				// データ信号を表示
 				canvasContextScope2.clearRect(canvasScope2.dataset.count, 0, 20, canvasScope2.height);
@@ -743,21 +815,23 @@ function receive(){
 				
 				
 				// 位相変調の同期信号を表示
+				canvasContextPlot1.globalAlpha = Math.min((spectrums2.abs[Math.floor(freq.sync.psk[0][0] / fsDivN)] ?? 0) / 5, 1);
 				canvasContextPlot1.clearRect(canvasPlot1.dataset.count, 0, 20, canvasPlot1.height);
-				canvasContextPlot1.fillStyle = "#00f";
-				canvasContextPlot1.fillRect(canvasPlot1.dataset.count, canvasPlot1.height / 2 - (spectrums2.arg[Math.floor(19500 / fsDivN)] ?? 0) * 100, 1, 2);
+				canvasContextPlot1.fillStyle = "#000";
+				canvasContextPlot1.fillRect(canvasPlot1.dataset.count, canvasPlot1.height / 2 - (spectrums2.arg[Math.floor(freq.sync.psk[0][0] / fsDivN)] ?? 0) * 100, 1, 2);
 				canvasPlot1.dataset.count = (canvasPlot1.dataset.count*1 + 1) % canvasPlot1.width;
 				
 				// 位相変調のデータ信号を表示
+				canvasContextPlot2.globalAlpha = Math.min((spectrums2.abs[Math.floor(freq.data.psk[0][0] / fsDivN)] ?? 0) / 5, 1);
 				canvasContextPlot2.clearRect(canvasPlot2.dataset.count, 0, 20, canvasPlot2.height);
-				canvasContextPlot2.fillStyle = "#f00";
-				canvasContextPlot2.fillRect(canvasPlot2.dataset.count, canvasPlot2.height / 2 - (spectrums2.arg[Math.floor(20625 / fsDivN)] ?? 0) * 100, 1, 2);
-				canvasContextPlot2.fillStyle = "#956daf";
+				canvasContextPlot2.fillStyle = "#000";
+				canvasContextPlot2.fillRect(canvasPlot2.dataset.count, canvasPlot2.height / 2 - (spectrums2.arg[Math.floor(freq.data.psk[0][0] / fsDivN)] ?? 0) * 100, 1, 2);
+				canvasContextPlot2.fillStyle = "#0f0";	//"#956daf";
 				canvasContextPlot2.fillRect(
 					canvasPlot2.dataset.count,
 					canvasPlot2.height / 2 - (
-						(spectrums2.arg[Math.floor(19500 / fsDivN)] ?? 0)
-						-(spectrums2.arg[Math.floor(20625 / fsDivN)] ?? 0)
+						(spectrums2.arg[Math.floor(freq.sync.psk[0][0] / fsDivN)] ?? 0)
+						-(spectrums2.arg[Math.floor(freq.data.psk[0][0] / fsDivN)] ?? 0)
 					) * 100,
 					1,
 					2
@@ -773,8 +847,8 @@ function receive(){
 				canvasContextCoord1.fillRect(canvasCoord1.width / 2, 0, 1, canvasCoord1.height);	// y軸(虚軸)
 				canvasContextCoord1.fillStyle = "#000";
 				canvasContextCoord1.fillRect(
-					canvasCoord1.width / 2 - (spectrums2.re[Math.floor(19500 / fsDivN)] ?? 0),
-					canvasCoord1.height / 2 - (spectrums2.im[Math.floor(19500 / fsDivN)] ?? 0),
+					canvasCoord1.width / 2 - (spectrums2.re[Math.floor(freq.sync.psk[0][0] / fsDivN)] ?? 0),
+					canvasCoord1.height / 2 - (spectrums2.im[Math.floor(freq.sync.psk[0][0] / fsDivN)] ?? 0),
 					2,
 					2
 				);
@@ -786,13 +860,13 @@ function receive(){
 				canvasContextCoord2.fillRect(canvasCoord2.width / 2, 0, 1, canvasCoord2.height);	// y軸(虚軸)
 				canvasContextCoord2.fillStyle = "#000";
 				canvasContextCoord2.fillRect(
-					canvasCoord2.width / 2 - (spectrums2.re[Math.floor(20625 / fsDivN)] ?? 0),
-					canvasCoord2.height / 2 - (spectrums2.im[Math.floor(20625 / fsDivN)] ?? 0),
+					canvasCoord2.width / 2 - (spectrums2.re[Math.floor(freq.data.psk[0][0] / fsDivN)] ?? 0),
+					canvasCoord2.height / 2 - (spectrums2.im[Math.floor(freq.data.psk[0][0] / fsDivN)] ?? 0),
 					2,
 					2
 				);
-
-
+				
+				
 				//document.querySelector("#out_log1").innerText = num.sync.median;
 				//document.querySelector("#out_log1").innerText += (audioContext.currentTime - t) + "<br />";
 			};
@@ -849,7 +923,7 @@ window.addEventListener("unload", function(){
 		<br />
 		<input type="button" value="send" onclick="send(this.parentNode.firstChild.nextSibling.value);" />
 		<input type="button" value="encode" onclick="alert(encode(this.parentNode.firstChild.nextSibling.value,16).toString());" />
-		<div id="in_progressive"></div>
+		<div id="in_progressive" class="dashed"></div>
 	</div>
 </details>
 
@@ -861,12 +935,12 @@ window.addEventListener("unload", function(){
 		<input type="button" value="receive" onclick="receive();" />
 		<br />
 		<div id="out_log0" class="dashed"></div>
-		<div id="out_log1"></div>
 		<div class="dashed">
 			<div id="out_binary"></div>
 			<div id="out_hex"></div>
 			<textarea id="out_text"></textarea>
 		</div>
+		<div id="out_log1"></div>
 		<div>
 			<span title="1:「+」, -1:「-」">
 				sync-sign : <span id="syncSign">0</span>
