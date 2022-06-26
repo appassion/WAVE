@@ -104,7 +104,7 @@ function encodeExHamming(input){
 	if(!Array.isArray(input)){
 		input = input.split("");
 	}
-	for(let i=0,len=input.length; i<len; i+=4){
+	for(let i=0; i<input.length; i+=4){
 		let buffer = input.slice(i, i+4);	//input.splice(0, 4);
 		buffer.push(String(+buffer[0] ^ +buffer[2] ^ +buffer[3]));
 		buffer.push(String(+buffer[0] ^ +buffer[1] ^ +buffer[3]));
@@ -124,7 +124,7 @@ function decodeExHamming(input){
 	if(input.length%8 !== 0){
 		return output.join("");
 	}
-	for(let i=0,len=input.length; i<len; i+=8){
+	for(let i=0; i<input.length; i+=8){
 		let buffer = input.slice(i, i+8);	//input.splice(0, 8);
 		let check = [];
 		check.push(+buffer[0] ^ +buffer[2] ^ +buffer[3] ^ +buffer[4]);
@@ -217,7 +217,7 @@ function LPFilter(data){
 
 function windowfunc(data){
 	if(!windowfunc.weights){	// メモ化
-		windowfunc.weights = Array(length);
+		windowfunc.weights = Array(data.length);
 		for(let i=0,len=data.length; i<len; i++){
 			windowfunc.weights[i] = 0.5-0.5*Math.cos(2*i*Math.PI/len);
 		}
@@ -736,7 +736,7 @@ function receive(){
 				document.querySelector("#bar1_20625").value = spectrums[Math.floor(20625 / fsDivN)] / 255 * 100;
 				canvasContextSpectrum1.clearRect(0, 0, canvasSpectrum1.width, canvasSpectrum1.height);
 				for(let i=0; i<spectrums.length; i++){
-					if(i * audioContext.sampleRate % audioAnalyser.fftSize == 0){	//i*fsDivN
+					if(i * audioContext.sampleRate % audioAnalyser.fftSize === 0){	//i*fsDivN
 						// 添字に対して周波数が割り切れる部分に目盛りを描画
 						canvasContextSpectrum1.fillStyle = "#ddd";
 						canvasContextSpectrum1.fillRect(i, 40, 1, canvasSpectrum1.height);
@@ -759,7 +759,7 @@ function receive(){
 				document.querySelector("#bar2_20625").value = (spectrums2.abs[Math.floor(20625 / fsDivN)] ?? 1) / 255 * 100;
 				canvasContextSpectrum2.clearRect(0, 0, canvasSpectrum2.width, canvasSpectrum2.height);
 				for(let i=0; i<spectrums2.abs.length/2; i++){
-					if(i * audioContext.sampleRate % audioAnalyser.fftSize == 0){	//i*fsDivN
+					if(i * audioContext.sampleRate % audioAnalyser.fftSize === 0){	//i*fsDivN
 						// 添字に対して周波数が割り切れる部分に目盛りを描画
 						canvasContextSpectrum2.fillStyle = "#ddd";
 						canvasContextSpectrum2.fillRect(i, 40, 1, canvasSpectrum2.height);
@@ -777,10 +777,10 @@ function receive(){
 				canvasContextScope1.clearRect(canvasScope1.dataset.count, 0, 20, canvasScope1.height);
 				canvasContextScope1.globalCompositeOperation = "multiply";	//lighter
 				canvasContextScope1.fillStyle = "#666";
+				canvasContextScope1.strokeStyle = "#00f";
+				//canvasContextScope1.lineWidth = 1;
 				canvasContextScope1.fillRect(canvasScope1.dataset.count, canvasScope1.height/2 - num.sync.value, 1, num.sync.value);
 				if(canvasScope1.dataset.count == 0){
-					//canvasContextScope1.lineWidth = 1;
-					canvasContextScope1.strokeStyle = "#00f";
 					canvasContextScope1.beginPath();
 					canvasContextScope1.moveTo(1, canvasScope1.height/2);
 				}
@@ -796,10 +796,10 @@ function receive(){
 				canvasContextScope2.clearRect(canvasScope2.dataset.count, 0, 20, canvasScope2.height);
 				canvasContextScope2.globalCompositeOperation = "multiply";	//lighter
 				canvasContextScope2.fillStyle = "#666";
+				canvasContextScope2.strokeStyle = "#f00";
+				//canvasContextScope2.lineWidth = 1;
 				canvasContextScope2.fillRect(canvasScope2.dataset.count, canvasScope2.height/2 - num.data.value, 1, num.data.value);
 				if(canvasScope2.dataset.count == 0){
-					//canvasContextScope2.lineWidth = 1;
-					canvasContextScope2.strokeStyle = "#f00";
 					canvasContextScope2.beginPath();
 					canvasContextScope2.moveTo(1, canvasScope2.height/2);
 				}
@@ -815,14 +815,14 @@ function receive(){
 				
 				
 				// 位相変調の同期信号を表示
-				canvasContextPlot1.globalAlpha = Math.min((spectrums2.abs[Math.floor(freq.sync.psk[0][0] / fsDivN)] ?? 0) / 5, 1);
+				canvasContextPlot1.globalAlpha = Math.min((spectrums2.abs[Math.floor(freq.sync.psk[0][0] / fsDivN)] ?? 0) / 10, 1);
 				canvasContextPlot1.clearRect(canvasPlot1.dataset.count, 0, 20, canvasPlot1.height);
 				canvasContextPlot1.fillStyle = "#000";
 				canvasContextPlot1.fillRect(canvasPlot1.dataset.count, canvasPlot1.height / 2 - (spectrums2.arg[Math.floor(freq.sync.psk[0][0] / fsDivN)] ?? 0) * 100, 1, 2);
 				canvasPlot1.dataset.count = (canvasPlot1.dataset.count*1 + 1) % canvasPlot1.width;
 				
 				// 位相変調のデータ信号を表示
-				canvasContextPlot2.globalAlpha = Math.min((spectrums2.abs[Math.floor(freq.data.psk[0][0] / fsDivN)] ?? 0) / 5, 1);
+				canvasContextPlot2.globalAlpha = Math.min((spectrums2.abs[Math.floor(freq.data.psk[0][0] / fsDivN)] ?? 0) / 10, 1);
 				canvasContextPlot2.clearRect(canvasPlot2.dataset.count, 0, 20, canvasPlot2.height);
 				canvasContextPlot2.fillStyle = "#000";
 				canvasContextPlot2.fillRect(canvasPlot2.dataset.count, canvasPlot2.height / 2 - (spectrums2.arg[Math.floor(freq.data.psk[0][0] / fsDivN)] ?? 0) * 100, 1, 2);
