@@ -287,17 +287,20 @@ function DFT(data, frec=[]){	// frecに設定された添字番号が2つなら�
 //oscillator.frequency = 440Hz	0～±ナイキスト周波数(サンプリング周波数の1/2=22050Hz)	負数は逆位相
 //oscillator.detune = 0セント	約-153600～+153600	1200セント=1オクターブ
 function send(source){
-	const time = 0.25;	// シンボル間隔 = ΔT + GI(ガードインターバル)		1シンボルあたり同期信号の半周期のタイミングで送信
+	const bps = 4;
+	const time = 1 / bps;	// シンボル間隔 = ΔT + GI(ガードインターバル)		1シンボルあたり同期信号の半周期のタイミングで送信
 	let audioContext = new (AudioContext || webkitAudioContext)();
 	
 	let compressor = audioContext.createDynamicsCompressor();	// クリッピング(振幅値のオーバーフロー)による歪みを防止
-	//let gain = audioContext.createGain();
+	//let gain = audioContext.createGain();	// 音量調節	負数を設定すると位相が反転
 	compressor.connect(audioContext.destination);	// スピーカー(context.destination)に接続
 	
 	let oscillators = {
+		base : [
+			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[18375]},	// PSK
+		],
 		sync : [
-			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[18000, 18375]},	// FSK
-			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[19125, 18750]},	// FSK
+			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[18750, 19125]},	// FSK
 			{oscillator:audioContext.createOscillator(), gain:audioContext.createGain(), freq:[19500, -19500]},	// PSK
 		],
 		data : [
@@ -316,22 +319,22 @@ function send(source){
 	let t_start = audioContext.currentTime;
 	let t = t_start;
 	frame.forEach((bit, i) => {
-		// データ信号,同期信号
+		// 基準信号,データ信号,同期信号
+		oscillators.base.forEach(e => {
+			e.oscillator.frequency.setValueAtTime(e.freq[0], t);
+			e.gain.gain.setValueAtTime(1.0, t + time*0.0);
+		});
 		oscillators.sync.forEach(e => {
 			e.oscillator.frequency.setValueAtTime(e.freq[i%2], t);
-			e.gain.gain.setValueAtTime(0.0, t + time*0.0);
-			e.gain.gain.setValueAtTime(0.0, t + time*0.1);
-			e.gain.gain.setValueAtTime(1.0, t + time*0.2);
-			e.gain.gain.setValueAtTime(1.0, t + time*0.9);
-			e.gain.gain.setValueAtTime(0.0, t + time*1.0);
+			e.gain.gain.setValueAtTime(1.0, t + time*0/4);
+			e.gain.gain.setValueAtTime(0.0, t + time*3/4);
+			//e.gain.gain.linearRampToValueAtTime(0.0, t + time*1);
 		});
 		oscillators.data.forEach(e => {
 			e.oscillator.frequency.setValueAtTime(e.freq[bit], t);
-			e.gain.gain.setValueAtTime(0.0, t + time*0.0);
-			e.gain.gain.setValueAtTime(0.0, t + time*0.1);
-			e.gain.gain.setValueAtTime(1.0, t + time*0.2);
-			e.gain.gain.setValueAtTime(1.0, t + time*0.9);
-			e.gain.gain.setValueAtTime(0.0, t + time*1.0);
+			e.gain.gain.setValueAtTime(1.0, t + time*0/4);
+			e.gain.gain.setValueAtTime(0.0, t + time*3/4);
+			//e.gain.gain.linearRampToValueAtTime(0.0, t + time*1);
 		});
 		t += time;
 		
@@ -347,6 +350,10 @@ function send(source){
 		})(i), (t-audioContext.currentTime)*1000);
 	});
 	
+	oscillators.base.forEach(e => {
+		e.oscillator.connect(e.gain);
+		e.gain.connect(compressor);
+	});
 	oscillators.sync.forEach(e => {
 		e.oscillator.connect(e.gain);
 		e.gain.connect(compressor);
@@ -356,6 +363,10 @@ function send(source){
 		e.gain.connect(compressor);
 	});
 	
+	oscillators.base.forEach(e => {
+		e.oscillator.start(t_start);
+		e.oscillator.stop(t);
+	});
 	oscillators.sync.forEach(e => {
 		e.oscillator.start(t_start);
 		e.oscillator.stop(t);
@@ -370,10 +381,14 @@ function send(source){
 
 function receive(){
 	let freq = {
+		base : {
+			psk : [
+				[18375],
+			],
+		},
 		sync : {
 			fsk : [
-				[18000, 18375],
-				[19125, 18750],
+				[18750, 19125],
 			],
 			psk : [
 				[19500, -19500],
@@ -819,6 +834,16 @@ function receive(){
 				canvasContextPlot1.clearRect(canvasPlot1.dataset.count, 0, 20, canvasPlot1.height);
 				canvasContextPlot1.fillStyle = "#000";
 				canvasContextPlot1.fillRect(canvasPlot1.dataset.count, canvasPlot1.height / 2 - (spectrums2.arg[Math.floor(freq.sync.psk[0][0] / fsDivN)] ?? 0) * 100, 1, 2);
+				canvasContextPlot1.fillStyle = "#0f0";	//"#956daf";
+				canvasContextPlot1.fillRect(
+					canvasPlot1.dataset.count,
+					canvasPlot1.height / 2 - (
+						(spectrums2.arg[Math.floor(freq.base.psk[0][0] / fsDivN)] ?? 0)
+						-(spectrums2.arg[Math.floor(freq.data.psk[0][0] / fsDivN)] ?? 0)
+					) * 100,
+					1,
+					2
+				);	// 基準信号の位相データと比較
 				canvasPlot1.dataset.count = (canvasPlot1.dataset.count*1 + 1) % canvasPlot1.width;
 				
 				// 位相変調のデータ信号を表示
@@ -830,12 +855,12 @@ function receive(){
 				canvasContextPlot2.fillRect(
 					canvasPlot2.dataset.count,
 					canvasPlot2.height / 2 - (
-						(spectrums2.arg[Math.floor(freq.sync.psk[0][0] / fsDivN)] ?? 0)
+						(spectrums2.arg[Math.floor(freq.base.psk[0][0] / fsDivN)] ?? 0)
 						-(spectrums2.arg[Math.floor(freq.data.psk[0][0] / fsDivN)] ?? 0)
 					) * 100,
 					1,
 					2
-				);	// 同期信号の位相データと比較
+				);	// 基準信号の位相データと比較
 				canvasPlot2.dataset.count = (canvasPlot2.dataset.count*1 + 1) % canvasPlot2.width;
 				
 				
